@@ -1,0 +1,56 @@
+body {
+    margin: 0; 
+    display: flex;
+    flex-direction: column;
+}
+
+.tools {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 10px;
+    background: #d3c2e4;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.tools button:hover {
+    transform: translateY(-2px);
+}
+
+.tools button.active {
+    background-color: #603887;
+}
+
+button img {
+  width: 23px;
+  height: 23px;
+}
+
+.Workspace {
+    display: flex;
+    background: #d6d5d7;
+}
+
+.Canvas {
+    flex: 1
+}
+
+#Canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.panel {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    background: #d6d5d7;
+    padding: 3px;
+    font-size: 15px;
+    border: 1px solid #d6d5d7;
+    padding: 10px;
+    margin: 10px;
+}
+
