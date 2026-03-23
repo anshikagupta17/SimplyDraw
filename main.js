@@ -13,7 +13,7 @@ const state = {
 
 const buttons = document.querySelectorAll(".tools button");
 function Clicked(event) {
-    let ClickedButton = event.current;
+    let ClickedButton = event.currentTarget;
     state.tool = ClickedButton.id;
     for (let i = 0; i < buttons.length; i++) {
         buttons[i].classList.remove("active");
