@@ -7,33 +7,34 @@
     </head>
     <body>
         <header class="tools">
-
-            <button id="Square">
-                <img src="icons/square.png" alt="Square">
-            </button>
-            <button id="Rectangle">
-                <img src="icons/rectangle.png" alt="Rectangle">
-            </button>
-            <button id="Circle">
-                <img src="icons/circle.png" alt="Circle">
-            </button>
-            <button id="Triangle">
-                <img src="icons/triangle.png" alt="Triangle">
-            </button>
-            <button id="Arrow">
-                <img src="icons/arrow.png" alt="Arrow">
-            </button>
-            <button id="Line">
-                <img src="icons/line.png" alt="Line">
-            </button>
-
-            <button id="Brush">
-                <img src="icons/brush.png" alt="Brush">
-            </button>
-            <button id="Eraser">
-                <img src="icons/eraser.png" alt="Eraser">
-            </button>
-
+            <div id="Shapes">
+                <button id="Square">
+                    <img src="icons/square.png" alt="Square">
+                </button>
+                <button id="Rectangle">
+                    <img src="icons/rectangle.png" alt="Rectangle">
+               </button>
+                <button id="Circle">
+                    <img src="icons/circle.png" alt="Circle">
+                </button>
+                <button id="Triangle">
+                    <img src="icons/triangle.png" alt="Triangle">
+                </button>
+                <button id="Arrow">
+                    <img src="icons/arrow.png" alt="Arrow">
+                </button>
+                <button id="Line">
+                    <img src="icons/line.png" alt="Line">
+                </button>
+            </div>
+            <div>
+                <button id="Brush">
+                    <img src="icons/brush.png" alt="Brush">
+                </button>
+                <button id="Eraser">
+                    <img src="icons/eraser.png" alt="Eraser">
+                </button>
+            </div>
             <button id="Image">
                 <img src="icons/image.png" alt="Image">
             </button>
@@ -41,8 +42,11 @@
         </header>
 
         <main class="Workspace">
+            <!-- creating side panel -->
             <aside class="panel">
                 <h2>Edit</h2>
+                <div id=""properties">
+                </div>
             </aside>
             <section class="Canvas">
                 <canvas id="Canvas" width="1600" height="1000">

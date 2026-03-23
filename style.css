@@ -17,11 +17,12 @@ body {
     box-shadow: 0 4px 10px rgba(139, 75, 179, 0.08);
     transition: all 0.3s ease;
     border-radius: 12px;
+    transform: translateY(5px);
 
 }
 
 .tools:hover {
-    transform: translateY(-5px);
+    transform: translateY(-3px);
     box-shadow: 0 10px 20px rgba(0, 0, 0, 0.12);
 }
 
@@ -69,6 +70,9 @@ button img {
     box-shadow: 0 4px 10px rgba(139, 75, 179, 0.08);
     transition: all 0.3s ease;
     border-radius: 12px;
+    font-family: Papyrus, monospace;
+    color: black;
+    text-decoration: overline underline wavy black;
 }
 
 .panel:hover {
