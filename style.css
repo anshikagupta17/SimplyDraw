@@ -3,16 +3,21 @@ body {
     display: flex;
     flex-direction: column;
 }
-
+body.dark-mode {
+    margin: 0; 
+    display: flex;
+    flex-direction: column;
+    background-color: black;
+    color: white;
+}
 .tools {
     display: flex;
     gap: 10px;
     padding: 10px; 
     background: #d3c2e4;
     justify-content: center;
-    transition: all 0.2s ease;
     align-items: center;
-    width: 500px;
+    width: 600px;
     margin: 0 auto;
     box-shadow: 0 4px 10px rgba(139, 75, 179, 0.08);
     transition: all 0.3s ease;
@@ -20,19 +25,43 @@ body {
     transform: translateY(5px);
 
 }
+.tools.dark-mode {
+    display: flex;
+    gap: 10px;
+    padding: 10px; 
+    background: #6d36a4;
+    justify-content: center;
+    align-items: center;
+    width: 600px;
+    margin: 0 auto;
+    box-shadow: 0 4px 10px rgba(143, 112, 162, 0.604);
+    transition: all 0.3s ease;
+    border-radius: 12px;
+    transform: translateY(5px);
 
+}
 .tools:hover {
     transform: translateY(-3px);
     box-shadow: 0 10px 20px rgba(0, 0, 0, 0.12);
+}
+.tools:hover.dark-mode {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 20px rgba(177, 124, 124, 0.12);
 }
 
 .tools button:hover {
     transform: translateY(-2px);
     border-color: #d3c2e4;
 }
-
+.tools button:hover.dark-mode {
+    transform: translateY(-2px);
+    border-color: #6d36a4;
+}
 .tools button.active {
     background-color: #d3c2e4;
+}
+.tools button.active.dark-mode {
+    background-color: #6d36a4;
 }
 
 button img {
@@ -40,21 +69,45 @@ button img {
   height: 23px;
   border-color: #d3c2e4;
 }
+button img.dark-mode {
+  width: 23px;
+  height: 23px;
+  border-color: #6d36a4;
+}
 
 .Workspace {
     display: flex;
 }
+.Workspace.dark-mode {
+    display: flex;
+    background-color: black;
+    color: white;
+}
+
 
 .Canvas {
     flex: 1
+}
+.Canvas.dark-mode {
+    flex: 1;
+    background-color: black;
+    color: white;
 }
 
 #Canvas {
     width: 100%;
     height: 100%;
     display: block;
+    position: relative
 }
-
+#Canvas.dark-mode {
+    width: 100%;
+    height: 100%;
+    display: block;
+    position: relative;
+    background-color: black;
+    color: white;
+}
 .panel {
     display: flex;
     flex-direction: column;
@@ -74,10 +127,34 @@ button img {
     color: black;
     text-decoration: underline black;
 }
+.panel.dark-mode {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    background: #6d36a4;
+    padding: 3px;
+    font-size: 15px;
+    border: 1px solid #6d36a4;
+    padding: 10px;
+    margin: 20px;
+    width: 50px;
+    height: 600px;
+    box-shadow: 0 4px 10px rgba(153, 105, 183, 0.331);
+    transition: all 0.3s ease;
+    border-radius: 12px;
+    font-family: Papyrus, monospace;
+    color: white;
+    text-decoration: underline;
+    text-decoration-color: white;
+}
 
 .panel:hover {
     transform: translateY(-5px);
     box-shadow: 0 10px 20px rgba(0, 0, 0, 0.12);
+}
+.panel:hover.dark-mode {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(255, 255, 255, 0.12);
 }
 #BrushCursor {
     position: absolute;
@@ -86,6 +163,16 @@ button img {
     width: 5px;
     height: 5px;
     display: none; 
+    pointer-events: none; 
+}
+#BrushCursor.dark-mode {
+    position: absolute;
+    border: 1px solid white;
+    border-radius: 50%;
+    width: 5px;
+    height: 5px;
+    display: none; 
+    pointer-events: none; 
 }
 
 .control {
@@ -95,8 +182,25 @@ button img {
     align-items: center;
     gap: 10px;
 }
+.control.dark-mode {
+    margin-bottom: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    background-color: black;
+    color: white;
+
+}
 
 .control input[type="range"] {
     flex: 1;
     width: 50px;
 }
+body.dark-mode .control input[type="range"] {
+    flex: 1;
+    width: 50px;
+    background-color: black;
+    color: white;
+}
+
