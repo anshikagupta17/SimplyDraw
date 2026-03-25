@@ -15,6 +15,8 @@ const state = {
 let count = 0;
 let Stroke = null;
 
+const keys={};
+
 // buttons
 const buttons = document.querySelectorAll(".tools button");
 
@@ -44,6 +46,22 @@ Undo.addEventListener("click", function() {
   Save();
   render();
 });
+
+function Undo_Z(){
+    if (state.objects.length === 0) {
+    return;
+  }
+  state.history.push(state.objects.pop());
+  Save();
+  render();
+}
+document.addEventListener("keydown",function(e){
+    let command= e.ctrlKey || e.metaKey;
+    if (command && e.key==="z"){
+        e.preventDefault();
+        Undo_Z();
+    }
+}); 
 
 let Redo = document.getElementById("Redo");
 Redo.addEventListener("click", function() {
@@ -259,6 +277,7 @@ let X = 0;
 let Y = 0;
 let Shape_X = 0;
 let Shape_Y = 0;
+
 
 canvas.addEventListener("mousedown", function(e) {
   if (
@@ -497,3 +516,4 @@ if (savedDrawing) {
   state.objects = JSON.parse(savedDrawing);
   render();
 }
+
