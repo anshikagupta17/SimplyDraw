@@ -11,10 +11,6 @@ const state = {
   selected: null
 };
 
-let savedDrawing = localStorage.getItem("drawing");
-if (savedDrawing) {
-  state.objects = JSON.parse(savedDrawing);
-}
 
 let count = 0;
 let Stroke = null;
@@ -245,6 +241,19 @@ function Save() {
   localStorage.setItem("drawing", JSON.stringify(state.objects));
 }
 
+function InvertColour(hex){
+    if (!hex){
+        return;
+    }
+    if (hex === "#000000" || hex === "#000") {
+        return "#ffffff";
+    }
+    if (hex === "#ffffff" || hex === "#fff") {
+        return "#000000";
+    }
+    return hex;
+}
+
 let Drawing = false;
 let X = 0;
 let Y = 0;
@@ -296,23 +305,24 @@ canvas.addEventListener("mousedown", function(e) {
 });
 
 canvas.addEventListener("mousemove", function(e) {
-  if (Drawing === false || state.tool !== "Brush") {
-    return;
-  }
 
   const rect = canvas.getBoundingClientRect();
   const posX = e.clientX - rect.left;
   const posY = e.clientY - rect.top;
 
-  BrushCursor.style.display = "block";
-  BrushCursor.style.left = posX - state.size / 2 + "px";
-  BrushCursor.style.top = posY - state.size / 2 + "px";
+  BrushCursor.style.left = posX  + "px";
+  BrushCursor.style.top = posY + "px";
   BrushCursor.style.width = state.size + "px";
   BrushCursor.style.height = state.size + "px";
   BrushCursor.style.borderColor = state.stroke;
 
+  if (Drawing === false || state.tool !== "Brush") {
+    return;
+  }
+  BrushCursor.style.display = "block";
+
   tool.strokeStyle = Stroke.stroke;
-  tool.lineWidth = Stroke.size;
+  tool.lineWidth = Stroke.StrokeWidth;
   tool.lineCap = "round";
   tool.lineJoin = "round";
   tool.beginPath();
@@ -469,12 +479,21 @@ canvas.addEventListener("mouseleave", function(e) {
 const theme = document.querySelector(".mode");
 
 theme.addEventListener("click", function() {
-    document.body.classList.toggle("dark-mode");
-    if (document.body.classList.contains("dark-mode")) {
-        img.src = "icons/darkmode.png";
-    } 
-    else {
-        img.src = "icons/lightmode.png";
-    }
+  document.body.classList.toggle("dark-mode");
 
+  for (let i = 0; i < state.objects.length; i++) {
+    let item = state.objects[i];
+    if (item.fill)   item.fill   = InvertColour(item.fill);
+    if (item.stroke) item.stroke = InvertColour(item.stroke);
+  }
+
+  render();
+  Save();
 });
+
+
+let savedDrawing = localStorage.getItem("drawing");
+if (savedDrawing) {
+  state.objects = JSON.parse(savedDrawing);
+  render();
+}
