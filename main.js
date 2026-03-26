@@ -28,6 +28,25 @@ let panel = document.getElementById("properties");
 let canvas = document.getElementById("Canvas");
 let tool = canvas.getContext("2d");
 
+function resizeCanvas() {
+    canvas.width = canvas.clientWidth;
+    canvas.height = canvas.clientHeight;
+    render();
+}
+
+function Uniform_pos(e) {
+  const rect = canvas.getBoundingClientRect();
+  const scale_X = canvas.width / rect.width;
+  const scale_Y = canvas.height / rect.height;
+  return {
+    x: (e.clientX - rect.left) * scale_X,
+    y: (e.clientY - rect.top) * scale_Y
+  };
+}
+
+window.addEventListener("resize", resizeCanvas);
+resizeCanvas();
+
 let ClearScreen = document.getElementById("Bin");
 ClearScreen.addEventListener("click", function() {
   state.objects = [];
@@ -82,8 +101,10 @@ function Sidebar(tool) {
         <label>Colour</label>
         <input type="color" id="fill" value="${state.fill}">
       </div>
+      <div class ="control">
       <label>Border</label>
       <input type="color" id="border" value="${state.border}">
+      </div>
       <div class="control">
         <label>Width</label>
         <input type="number" id="size" min="1" max="100" value="${state.size}">
@@ -102,14 +123,8 @@ function Sidebar(tool) {
         <input type="number" id="size" min="0" max="100" value="${state.size}">
       </div>
     `;
-  }
-
-  if (tool === "Eraser") {
-    panel.innerHTML = `
-      <label>Size</label>
-      <input type="number" id="size" min="1" max="100" value="${state.size}">
-    `;
-  } else if (tool === "Image") {
+  } 
+  else if (tool === "Image") {
     panel.innerHTML = `
       <button id="Insert">Insert Image</button>
       <input type="file" id="image" accept="image/*">
@@ -144,8 +159,6 @@ function Sidework() {
   if (v_size) {
     v_size.addEventListener("input", function(e) {
       state.size = Math.max(1, parseInt(e.target.value));
-      BrushCursor.style.width = state.size + "px";
-      BrushCursor.style.height = state.size + "px";
     });
   }
 
@@ -178,6 +191,270 @@ function Sidework() {
   }
 }
 
+function BrushSelection(brush){
+    let minX= brush.points[0].x;
+    let minY= brush.points[0].y;
+    let maxX= brush.points[0].x;
+    let maxY= brush.points[0].y;
+
+    for (let i=0; i<brush.points.length; i++){
+        let p= brush.points[i];
+
+        if (p.x < minX) {
+            minX=p.x;
+        }
+        if (p.x > maxX) {
+            maxX= p.x;
+        }
+        if (p.y <minY){
+            minY=p.y;
+        }
+        if (p.y > maxY) {
+            maxY= p.y;
+        }
+    }
+    let space= brush.StrokeWidth/2;
+    return {
+        x: minX - space,
+        y: minY - space,
+        width: maxX - minX + space * 2,
+        height: maxY - minY + space * 2
+    };
+}
+function BrushDetector(brush, x,y){
+    let radius= brush.StrokeWidth/2 +4;
+    let p=brush.points;
+    if (p.length === 1) {
+        let dx = x - p[0].x;
+        let dy = y - p[0].y;
+        return (dx * dx + dy * dy) <= radius * radius;
+    }
+
+    for (let i = 0; i < p.length - 1; i++) {
+        let p1 = p[i];
+        let p2 = p[i + 1];
+
+        let dx = p2.x - p1.x;
+        let dy = p2.y - p1.y;
+
+        let length = dx * dx + dy * dy;
+
+        let k = 0;
+        if (length !== 0) {
+            k = ((x - p1.x) * dx + (y - p1.y) * dy) / length;
+        }
+
+        if (k < 0) {
+            k = 0;
+        }
+        if (k > 1) {
+            k = 1;
+        }
+
+        let closest_x = p1.x + k * dx;
+        let closest_y = p1.y + k * dy;
+
+        let dist_x = x - closest_x;
+        let dist_y = y - closest_y;
+
+        let distance = dist_x * dist_x + dist_y * dist_y;
+
+        if (distance <= radius * radius) {
+            return true;
+        }
+    }
+
+    return false;
+}
+function RectangleSelection(rectangle){
+    let minX, minY, maxX, maxY;
+    if (rectangle.width >= 0) {
+        minX = rectangle.x;
+        maxX = rectangle.x + rectangle.width;
+    } 
+    else {
+        minX = rectangle.x + rectangle.width;
+        maxX = rectangle.x;
+    }
+    if (rectangle.height >= 0) {
+        minY = rectangle.y;
+        maxY = rectangle.y + rectangle.height;
+    } 
+    else {
+        minY = rectangle.y + rectangle.height;
+        maxY = rectangle.y;
+    }
+
+    let space= rectangle.StrokeWidth/2;
+    return {
+        x: (minX - space),
+        y: (minY - space),
+        width: maxX - minX + space * 2,
+        height: maxY - minY + space * 2
+    };
+}
+
+function SquareSelector(square){
+    let minX, minY, maxX, maxY;
+    if (square.width >= 0) {
+        minX = square.x;
+        maxX = square.x + square.width;
+    } 
+    else {
+        minX = square.x + square.width;
+        maxX = square.x;
+    }
+    if (square.height >= 0) {
+        minY = square.y;
+        maxY = square.y + square.height;
+    } 
+    else {
+        minY = square.y + square.height;
+        maxY = square.y;
+    }
+
+    let space= square.StrokeWidth/2;
+    return {
+        x: (minX - space),
+        y: (minY - space),
+        width: maxX - minX + space * 2,
+        height: maxY - minY + space * 2
+    };
+}
+
+function CircleSelector(circle){
+    let space= circle.StrokeWidth/2;
+
+    return {
+        x: circle.x - circle.rad - space,
+        y: circle.y - circle.rad -space,
+        width:(circle.rad*2) + space * 2,
+        height:(circle.rad*2) + space * 2
+    };
+}
+
+function ActualCircleDetection(circle, x, y){
+    let dx = x - circle.x;
+    let dy = y - circle.y;
+    return ((dx * dx + dy * dy) <= (circle.rad * circle.rad));
+}
+
+function TriangleSelector(triangle){
+    let minX = Math.min(triangle.X1, triangle.X2, triangle.X3);
+    let maxX = Math.max(triangle.X1, triangle.X2, triangle.X3);
+    let minY = Math.min(triangle.Y1, triangle.Y2, triangle.Y3);
+    let maxY = Math.max(triangle.Y1, triangle.Y2, triangle.Y3);
+
+    let space = triangle.StrokeWidth / 2;
+
+    return {
+        x: minX - space,
+        y: minY - space,
+        width: (maxX - minX) + space * 2,
+        height: (maxY - minY) + space * 2
+    };
+}
+
+function TriangleDetector(triangle,x,y){
+    let x1 = triangle.X1;
+    let y1 = triangle.Y1;
+    let x2 = triangle.X2;
+    let y2 = triangle.Y2;
+    let x3 = triangle.X3;
+    let y3 = triangle.Y3;
+
+    let ABC = (y2 - y3)*(x1 - x3) + (x3 - x2)*(y1 - y3);
+
+    if (ABC === 0) {
+        return false;
+    }
+
+    let a = ((y2 - y3)*(x - x3) + (x3 - x2)*(y - y3)) / ABC;
+    let b = ((y3 - y1)*(x - x3) + (x1 - x3)*(y - y3)) / ABC;
+    let c = 1 - a - b;
+
+    return (a >= 0 && b >= 0 && c >= 0);
+}
+
+function LineSelector(line){
+    let minX, minY, maxX, maxY;
+    if (line.x>=line.lastX) {
+        minX = line.lastX;
+        maxX = line.x;
+    } 
+    else {
+        minX = line.x;
+        maxX = line.lastX;
+    }
+    if (line.y>=line.lastY) {
+        minY = line.lastY;
+        maxY = line.y;
+    } 
+    else {
+        minY = line.y;
+        maxY = line.lastY;
+    }
+    let space = line.StrokeWidth / 2;
+
+    return {
+        x: minX - space,
+        y: minY - space,
+        width: (maxX - minX) + space * 2,
+        height: (maxY - minY) + space * 2
+    };
+}
+function LineDetector(line,x,y){
+    let x1 = line.x;
+    let y1 = line.y;
+    let x2 = line.lastX;
+    let y2 = line.lastY;
+    let dx=x2-x1;
+    let dy=y2-y1;
+    let length=dx*dx+ dy * dy;
+    if (length===0){
+        return false;
+    }
+    let k = ((x-x1)*dx + (y-y1)*dy)/length;
+    if (k < 0) {
+            k = 0;
+        }
+        if (k > 1) {
+            k = 1;
+        }
+
+        let closest_x = x1 + k * dx;
+        let closest_y = y1 + k * dy;
+
+        let dist_x = x - closest_x;
+        let dist_y = y - closest_y;
+
+        let distance = dist_x * dist_x + dist_y * dist_y;
+        let radius = line.StrokeWidth / 2 + 4;
+        if (distance <= radius * radius) {
+            return true;
+        }
+        else {
+            return false;
+        }
+
+}
+
+function ObjectClick(area,x,y){
+    let horizontal=false;
+    let vertical= false;
+    if (x>= area.x && x<= area.x+area.width){
+        horizontal=true;
+    }
+    if(y>= area.y && y<= area.y+area.height){
+        vertical=true;
+    }
+    if (horizontal&& vertical){
+        return true;
+    }
+    else {
+        return false;
+    }
+}
 function render() {
   tool.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -201,6 +478,13 @@ function render() {
         }
         tool.stroke();
       }
+      if (state.selected===current){
+        let area = BrushSelection(current);
+        tool.strokeStyle="blue";
+        tool.lineWidth=1;
+        tool.strokeRect(area.x, area.y, area.width, area.height);
+      }
+
     }
 
     // shapes
@@ -210,6 +494,12 @@ function render() {
       tool.lineWidth = current.StrokeWidth;
       tool.fillRect(current.x, current.y, current.width, current.height);
       tool.strokeRect(current.x, current.y, current.width, current.height);
+      if (state.selected===current){
+        let area = RectangleSelection(current);
+        tool.strokeStyle="blue";
+        tool.lineWidth=3;
+        tool.strokeRect(area.x, area.y, area.width, area.height);
+      }
     }
 
     if (current.type === "Square") {
@@ -218,6 +508,12 @@ function render() {
       tool.lineWidth = current.StrokeWidth;
       tool.fillRect(current.x, current.y, current.width, current.height);
       tool.strokeRect(current.x, current.y, current.width, current.height);
+      if (state.selected===current){
+        let area = SquareSelector(current);
+        tool.strokeStyle="blue";
+        tool.lineWidth=3;
+        tool.strokeRect(area.x, area.y, area.width, area.height);
+      }
     }
 
     if (current.type === "Circle") {
@@ -228,6 +524,12 @@ function render() {
       tool.lineWidth = current.StrokeWidth;
       tool.fill();
       tool.stroke();
+      if (state.selected===current){
+        let area = CircleSelector(current);
+        tool.strokeStyle="blue";
+        tool.lineWidth=3;
+        tool.strokeRect(area.x, area.y, area.width, area.height);
+      }
     }
 
     if (current.type === "Triangle") {
@@ -241,6 +543,12 @@ function render() {
       tool.lineWidth = current.StrokeWidth;
       tool.fill();
       tool.stroke();
+      if (state.selected===current){
+        let area = TriangleSelector(current);
+        tool.strokeStyle="blue";
+        tool.lineWidth=3;
+        tool.strokeRect(area.x, area.y, area.width, area.height);
+      }
     }
 
     if (current.type === "Line") {
@@ -249,8 +557,14 @@ function render() {
       tool.lineTo(current.lastX, current.lastY);
       tool.fillStyle = current.fill;
       tool.strokeStyle = current.stroke;
-      tool.lineWidth = current.size;
+      tool.lineWidth = current.StrokeWidth;
       tool.stroke();
+      if (state.selected===current){
+        let area = LineSelector(current);
+        tool.strokeStyle="blue";
+        tool.lineWidth=3;
+        tool.strokeRect(area.x, area.y, area.width, area.height);
+      }
     }
   }
 }
@@ -280,65 +594,108 @@ let Shape_Y = 0;
 
 
 canvas.addEventListener("mousedown", function(e) {
-  if (
-    state.tool === "Brush" ||
-    state.tool === "Rectangle" ||
-    state.tool === "Square" ||
-    state.tool === "Circle" ||
-    state.tool === "Triangle" ||
-    state.tool === "Line"
-  ) {
+    const pos= Uniform_pos(e);
+    
+    if (state.tool === "Select") {
+        state.selected = null;
+
+        for (let i = state.objects.length - 1; i >= 0; i-- ) {
+            let item = state.objects[i];
+            if (item.type === "Brush") {
+                if (BrushDetector(item, pos.x, pos.y)) {
+                    state.selected = item;
+                    break;
+                }
+            }
+            if (item.type==="Rectangle"){
+                let area= RectangleSelection(item);;
+                if (ObjectClick(area, pos.x, pos.y)){
+                    state.selected=item;
+                    break;
+                }
+            }
+            if (item.type==="Square"){
+                let area= SquareSelector(item);;
+                if (ObjectClick(area, pos.x, pos.y)){
+                    state.selected=item;
+                    break;
+                }
+            }
+            if (item.type === "Circle"){
+                if (ActualCircleDetection(item, pos.x, pos.y)){
+                    state.selected = item;
+                    break;
+                }
+            }
+            if (item.type==="Triangle"){
+                if (TriangleDetector(item,pos.x,pos.y)){
+                    state.selected=item;
+                    break;
+                }
+            }
+            if (item.type==="Line"){
+                if (LineDetector(item, pos.x, pos.y)){
+                    state.selected=item;
+                    break;
+                }
+            }
+
+        }
+        render();
+        return;
+    }
+    if (
+        state.tool === "Brush" ||
+        state.tool === "Rectangle" ||
+        state.tool === "Square" ||
+        state.tool === "Circle" ||
+        state.tool === "Triangle" ||
+        state.tool === "Line"
+    ) {
+
+    
     Drawing = true;
   }
 
   if (state.tool === "Brush") {
-    X = e.offsetX;
-    Y = e.offsetY;
+    X = pos.x;
+    Y = pos.y;
     Stroke = {};
-    Stroke.id = count + 1;
+    Stroke.id = count;
     Stroke.type = "Brush";
     Stroke.points = [{ x: X, y: Y }];
     Stroke.stroke = state.stroke;
     Stroke.StrokeWidth = state.size;
   } else if (state.tool === "Rectangle") {
-    Shape_X = e.offsetX;
-    Shape_Y = e.offsetY;
+    Shape_X = pos.x;
+    Shape_Y = pos.y;
   }
 
   if (state.tool === "Square") {
-    Shape_X = e.offsetX;
-    Shape_Y = e.offsetY;
+    Shape_X = pos.x;
+    Shape_Y = pos.y;
   }
   if (state.tool === "Circle") {
-    Shape_X = e.offsetX;
-    Shape_Y = e.offsetY;
+    Shape_X = pos.x;
+    Shape_Y = pos.y;
   }
   if (state.tool === "Triangle") {
-    Shape_X = e.offsetX;
-    Shape_Y = e.offsetY;
+    Shape_X = pos.x;
+    Shape_Y = pos.y;
   }
   if (state.tool === "Line") {
-    Shape_X = e.offsetX;
-    Shape_Y = e.offsetY;
+    Shape_X = pos.x;
+    Shape_Y = pos.y;
   }
 });
 
 canvas.addEventListener("mousemove", function(e) {
 
-  const rect = canvas.getBoundingClientRect();
-  const posX = e.clientX - rect.left;
-  const posY = e.clientY - rect.top;
-
-  BrushCursor.style.left = posX  + "px";
-  BrushCursor.style.top = posY + "px";
-  BrushCursor.style.width = state.size + "px";
-  BrushCursor.style.height = state.size + "px";
-  BrushCursor.style.borderColor = state.stroke;
-
+  const pos= Uniform_pos(e);
+  
   if (Drawing === false || state.tool !== "Brush") {
     return;
   }
-  BrushCursor.style.display = "block";
 
   tool.strokeStyle = Stroke.stroke;
   tool.lineWidth = Stroke.StrokeWidth;
@@ -346,34 +703,36 @@ canvas.addEventListener("mousemove", function(e) {
   tool.lineJoin = "round";
   tool.beginPath();
   tool.moveTo(X, Y);
-  tool.lineTo(posX, posY);
+  tool.lineTo(pos.x, pos.y);
   tool.stroke();
 
-  Stroke.points.push({ x: posX, y: posY });
+  Stroke.points.push({ x: pos.x, y: pos.y });
   Save();
 
-  X = posX;
-  Y = posY;
+  X = pos.x;
+  Y = pos.y;
 });
 
 canvas.addEventListener("mouseup", function(e) {
-  if (state.tool === "Brush") {
-    Drawing = false;
-    BrushCursor.style.display = "none";
-    const rect = canvas.getBoundingClientRect();
-    const endX = e.clientX - rect.left;
-    const endY = e.clientY - rect.top;
-    state.objects.push(Stroke);
-    Save();
-    Stroke = null;
-    render();
-  }
+    const pos = Uniform_pos(e);
+    if (state.tool === "Brush") {
+        Drawing = false;
+        const rect = canvas.getBoundingClientRect();
+        state.objects.push(Stroke);
+        Save();
+        Stroke = null;
+        render();
+    }
+    if (state.tool === "Brush" && Stroke) {
+        Drawing = false;
+        BrushCursor.style.display = "none";
+        state.objects.push(Stroke);
+        Save();
+        Stroke = null;
+        render();
+    }
 
   if (state.tool === "Rectangle") {
-    let endX = e.offsetX;
-    let endY = e.offsetY;
-    let width = endX - Shape_X;
-    let height = endY - Shape_Y;
 
     let item = {};
     count += 1;
@@ -381,8 +740,8 @@ canvas.addEventListener("mouseup", function(e) {
     item.type = "Rectangle";
     item.x = Shape_X;
     item.y = Shape_Y;
-    item.width = width;
-    item.height = height;
+    item.width = pos.x - Shape_X;
+    item.height = pos.y- Shape_Y;
     item.fill = state.fill;
     item.stroke = state.border;
     item.StrokeWidth = state.size;
@@ -394,10 +753,8 @@ canvas.addEventListener("mouseup", function(e) {
   }
 
   if (state.tool === "Square") {
-    let endX = e.offsetX;
-    let endY = e.offsetY;
-    let width = endX - Shape_X;
-    let height = endY - Shape_Y;
+    let width = pos.x - Shape_X;
+    let height = pos.y - Shape_Y;
     let p_width = Math.abs(width);
     let p_height = Math.abs(height);
     let size = p_width < p_height ? p_width : p_height;
@@ -423,10 +780,8 @@ canvas.addEventListener("mouseup", function(e) {
   }
 
   if (state.tool === "Circle") {
-    let endX = e.offsetX;
-    let endY = e.offsetY;
-    let x = endX - Shape_X;
-    let y = endY - Shape_Y;
+    let x = pos.x - Shape_X;
+    let y = pos.y - Shape_Y;
     let radius = Math.sqrt(x * x + y * y);
 
     let item = {};
@@ -447,18 +802,16 @@ canvas.addEventListener("mouseup", function(e) {
   }
 
   if (state.tool === "Triangle") {
-    let endX = e.offsetX;
-    let endY = e.offsetY;
     let item = {};
     count += 1;
     item.id = count;
     item.type = "Triangle";
     item.X1 = Shape_X;
     item.Y1 = Shape_Y;
-    item.X2 = endX;
-    item.Y2 = endY;
-    item.X3 = Shape_X + (Shape_X - endX);
-    item.Y3 = endY;
+    item.X2 = pos.x;
+    item.Y2 = pos.y;
+    item.X3 = Shape_X + (Shape_X - pos.x);
+    item.Y3 = pos.y;
     item.fill = state.fill;
     item.stroke = state.border;
     item.StrokeWidth = state.size;
@@ -470,16 +823,14 @@ canvas.addEventListener("mouseup", function(e) {
   }
 
   if (state.tool === "Line") {
-    let endX = e.offsetX;
-    let endY = e.offsetY;
     let item = {};
     count += 1;
     item.id = count;
     item.type = "Line";
     item.x = Shape_X;
     item.y = Shape_Y;
-    item.lastX = endX;
-    item.lastY = endY;
+    item.lastX = pos.x;
+    item.lastY = pos.y;
     item.fill = state.fill;
     item.stroke = state.border;
     item.StrokeWidth = state.size;
@@ -487,12 +838,12 @@ canvas.addEventListener("mouseup", function(e) {
     state.objects.push(item);
     Save();
     render();
+    Drawing=false;
   }
 });
 
 canvas.addEventListener("mouseleave", function(e) {
   Drawing = false;
-  BrushCursor.style.display = "none";
 });
 
 const theme = document.querySelector(".mode");

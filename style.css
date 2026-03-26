@@ -12,12 +12,13 @@ body.dark-mode {
 }
 .tools {
     display: flex;
-    gap: 10px;
-    padding: 10px; 
+    gap: 0.6rem;
+    padding: 0.6rem;
     background: #d3c2e4;
     justify-content: center;
     align-items: center;
-    width: 600px;
+    width: 80%;
+    max-width: 600px;
     margin: 0 auto;
     box-shadow: 0 4px 10px rgba(139, 75, 179, 0.08);
     transition: all 0.3s ease;
@@ -27,12 +28,13 @@ body.dark-mode {
 }
 .tools.dark-mode {
     display: flex;
-    gap: 10px;
-    padding: 10px; 
+    gap: 0.6rem;
+    padding: 0.6rem; 
     background: #6d36a4;
     justify-content: center;
     align-items: center;
-    width: 600px;
+    width: 80%;
+    max-width: 600px;
     margin: 0 auto;
     box-shadow: 0 4px 10px rgba(143, 112, 162, 0.604);
     transition: all 0.3s ease;
@@ -111,13 +113,12 @@ button img.dark-mode {
 .panel {
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 0.3rem;
     background: #d3c2e4;
-    padding: 3px;
-    font-size: 15px;
+    font-size: 0.9rem;
     border: 1px solid #d3c2e4;
-    padding: 10px;
-    margin: 20px;
+    padding: 0.6rem;
+    margin: 1.2rem;
     width: 50px;
     height: 600px;
     box-shadow: 0 4px 10px rgba(139, 75, 179, 0.08);
@@ -130,13 +131,12 @@ button img.dark-mode {
 .panel.dark-mode {
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 0.3rem;
     background: #6d36a4;
-    padding: 3px;
-    font-size: 15px;
+    font-size: 0.9rem;
     border: 1px solid #6d36a4;
-    padding: 10px;
-    margin: 20px;
+    padding: 0.6rem;
+    margin: 1.2rem;
     width: 50px;
     height: 600px;
     box-shadow: 0 4px 10px rgba(153, 105, 183, 0.331);
@@ -180,14 +180,14 @@ button img.dark-mode {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 10px;
+    gap: 0.6rem;
 }
 .control.dark-mode {
     margin-bottom: 10px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 10px;
+    gap: 0.6rem;
     background-color: black;
     color: white;
 
