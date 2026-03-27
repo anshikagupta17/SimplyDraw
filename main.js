@@ -7,7 +7,7 @@ const state = {
   opacity: 1,
   image: null,
   objects: [],
-  undoStack: [],
+  history: [],
   redoStack: [],
   selected: null,
   brush_style: "pen"
@@ -59,9 +59,8 @@ resizeCanvas();
 
 let ClearScreen = document.getElementById("Bin");
 ClearScreen.addEventListener("click", function() {
-    if (state.objects.length > 0) {
-        state.undoStack.push([...state.objects]);
-        state.redoStack = [];
+    for (let i = 0; i < state.objects.length; i++) {
+        state.history.push(state.objects[i]);
     }
     state.objects = [];
     tool.clearRect(0, 0, canvas.width, canvas.height);
@@ -74,15 +73,19 @@ ClearScreen.addEventListener("click", function() {
 
 let Undo = document.getElementById("Undo");
 Undo.addEventListener("click", function() {
-    Undo_Z();
-});
-
-function Undo_Z() {
-    if (state.undoStack.length === 0) {
+    if (state.objects.length === 0) {
         return;
     }
-    state.redoStack.push([...state.objects]);
-    state.objects = state.undoStack.pop();
+    state.history.push(state.objects.pop());
+    Save();
+    render();
+});
+
+function Undo_Z(){
+    if (state.objects.length === 0) {
+        return;
+    }
+    state.history.push(state.objects.pop());
     Save();
     render();
 }
@@ -98,14 +101,14 @@ document.addEventListener("keydown",function(e){
 
 let Redo = document.getElementById("Redo");
 Redo.addEventListener("click", function() {
-    if (state.redoStack.length === 0) {
-        return;
-    }
-    state.undoStack.push([...state.objects]);
-    state.objects = state.redoStack.pop();
-    Save();
-    render();
+  if (state.history.length === 0) {
+    return;
+  }
+  state.objects.push(state.history.pop());
+  Save();
+  render();
 });
+
 
 // image logic
 
