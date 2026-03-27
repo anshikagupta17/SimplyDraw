@@ -22,6 +22,11 @@ let ResizeHandle = null;
 let rotating = false;
 let current = null;
 
+let Draggin =false;
+let drag_x=0;
+let drag_y=0;
+let initial_drag_coords= {};
+
 // buttons
 const buttons = document.querySelectorAll(".tools button");
 
@@ -53,15 +58,15 @@ resizeCanvas();
 
 let ClearScreen = document.getElementById("Bin");
 ClearScreen.addEventListener("click", function() {
-    for (let i=0; i<state.objects.length;i++){
-        state.history[i]=state.objects[state.objects.length-i-1];
+    for (let i = 0; i < state.objects.length; i++) {
+        state.history.push(state.objects[i]);
     }
     state.objects = [];
     tool.clearRect(0, 0, canvas.width, canvas.height);
     localStorage.removeItem("drawing");
     Save();
     render();
-    });
+});
 
 //Undo
 
@@ -549,7 +554,7 @@ function render() {
             tool.strokeStyle = current.stroke;
             tool.lineWidth = current.StrokeWidth;
             tool.lineCap = "round";
-            tool.setLineDash([current.size, current.size-2]);
+            tool.setLineDash([10,8]);
             if (points.length > 0) {
                 tool.beginPath();
                 tool.moveTo(points[0].x, points[0].y);
@@ -712,8 +717,8 @@ function render() {
         tool.translate(cx, cy);
         tool.rotate(current.rotation || 0);
         tool.beginPath();
-        tool.moveTo(current.x - lcx, current.y - lcy); 
-        tool.lineTo(current.lastX - lcx, current.lastY - lcy);
+        tool.moveTo(current.x - cx, current.y - cy); 
+        tool.lineTo(current.lastX - cx, current.lastY - cy);
         tool.stroke();
         tool.restore();
         ResizingShapes(area);
@@ -1079,6 +1084,9 @@ canvas.addEventListener("mousedown", function(e) {
         if (state.selected.type === "Text") {
             area = { x: state.selected.x, y: state.selected.y, width: state.selected.width, height: state.selected.height };
         }       
+        if (state.selected.type === "Brush") {
+            area = BrushSelection(state.selected);
+        }
 
         if (area) {
             let corner = Resizing_Corner(area, pos.x, pos.y);
@@ -1094,6 +1102,38 @@ canvas.addEventListener("mousedown", function(e) {
                 Resizing = true;
                 ResizeHandle = corner;
                 Drawing = false;
+                return;
+            }
+            if (ObjectClick(area, pos.x, pos.y)) {
+                Draggin=true;
+                drag_x=pos.x;
+                drag_y=pos.y;
+
+                let item= state.selected;
+
+                if (item.type ==="Rectangle" ||item.type ==="Square" || item.type ==="Image" || item.type ==="Text") {
+                    initial_drag_coords={x: item.x, y: item.y};
+                }
+
+                if (item.type === "Circle") {
+                    initial_drag_coords = { x: item.x, y: item.y };
+                }
+
+                if (item.type === "Line") {
+                    initial_drag_coords = { x: item.x, y: item.y, lastX: item.lastX, lastY: item.lastY };
+                }
+
+                if (item.type === "Triangle") {
+                    initial_drag_coords = { X1: item.X1, Y1: item.Y1, X2: item.X2, Y2: item.Y2, X3: item.X3, Y3: item.Y3 };
+                }
+
+                if (item.type==="Brush"){
+                    initial_drag_coords.points=[];
+                    for (let i=0; i<item.points.length; i++){
+                        initial_drag_coords.points.push({x: item.points[i].x, y: item.points[i].y})
+                    }
+                }
+
                 return;
             }
         }
@@ -1191,9 +1231,12 @@ canvas.addEventListener("mousedown", function(e) {
     X = pos.x;
     Y = pos.y;
     Stroke = {};
+    Stroke.x = X;
+    Stroke.y = Y;
+    count += 1;
     Stroke.id = count;
     Stroke.type = "Brush";
-    Stroke.points = [{ x: X, y: Y }];
+    Stroke.points = [{ x: pos.x, y: pos.y }];
     Stroke.stroke = state.stroke;
     Stroke.StrokeWidth = state.size;
     Stroke.opacity = state.opacity;
@@ -1232,233 +1275,279 @@ canvas.addEventListener("mousemove", function(e) {
 
   const pos= Uniform_pos(e);
   
-  if (rotating && current) {
-    let cx, cy;
-    if (current.type === "Circle") {
-      cx = current.x;
-      cy = current.y;
-    } else if (current.type === "Triangle") {
-      cx = (current.X1 + current.X2 + current.X3) / 3;
-      cy = (current.Y1 + current.Y2 + current.Y3) / 3;
-    } else if (current.type === "Line") {
-      cx = (current.x + current.lastX) / 2;
-      cy = (current.y + current.lastY) / 2;
-    } else {
-      cx = current.x + current.width / 2;
-      cy = current.y + current.height / 2;
+    if (rotating && current) {
+        let cx, cy;
+        if (current.type === "Circle") {
+            cx = current.x;
+            cy = current.y;
+        } 
+        else if (current.type === "Triangle") {
+            cx = (current.X1 + current.X2 + current.X3) / 3;
+            cy = (current.Y1 + current.Y2 + current.Y3) / 3;
+        } 
+        else if (current.type === "Line") {
+            cx = (current.x + current.lastX) / 2;
+            cy = (current.y + current.lastY) / 2;
+        }  
+        else {
+            cx = current.x + current.width / 2;
+            cy = current.y + current.height / 2;
+        }
+        current.rotation = Math.atan2(pos.y - cy, pos.x - cx) + Math.PI / 2;
+        render();
+        return;
     }
-    current.rotation = Math.atan2(pos.y - cy, pos.x - cx) + Math.PI / 2;
-    render();
-    return;
-  }
-  
-if (Resizing && state.selected) {
-    let obj = state.selected;
- 
-    if (obj.type === "Rectangle") {
-        if (ResizeHandle === "bottom-right") {
-            obj.width = pos.x - obj.x;
-            obj.height = pos.y - obj.y;
+
+    if (Draggin && state.selected) {
+        let obj = state.selected;
+        let offsetX = pos.x - drag_x;
+        let offsetY = pos.y - drag_y;
+        let final_x=initial_drag_coords.x + offsetX;
+        let final_y= initial_drag_coords.y + offsetY;
+
+        if (obj.type === "Rectangle" || obj.type === "Square" || obj.type === "Image" || obj.type === "Text") {
+            obj.x = final_x
+            obj.y = final_y
         }
-        if (ResizeHandle === "top-left") {
-            obj.width = obj.width + (obj.x - pos.x);
-            obj.height = obj.height + (obj.y - pos.y);
-            obj.x = pos.x;
-            obj.y = pos.y;
+        if (obj.type === "Circle") {
+            obj.x = final_x
+            obj.y = final_y
         }
-        if (ResizeHandle === "top-right") {
-            obj.width = pos.x - obj.x;
-            obj.height = obj.height + (obj.y - pos.y);
-            obj.y = pos.y;
+        if (obj.type === "Line") {
+            obj.x = final_x
+            obj.y = final_y
+            obj.lastX = initial_drag_coords.lastX + offsetX;
+            obj.lastY = initial_drag_coords.lastY + offsetY;
         }
-        if (ResizeHandle === "bottom-left") {
-            obj.width = obj.width + (obj.x - pos.x);
-            obj.x = pos.x;
-            obj.height = pos.y - obj.y;
+        if (obj.type === "Triangle") {
+            obj.X1 = initial_drag_coords.X1 + offsetX;
+            obj.Y1 = initial_drag_coords.Y1 + offsetY;
+            obj.X2 = initial_drag_coords.X2 + offsetX;
+            obj.Y2 = initial_drag_coords.Y2 + offsetY;
+            obj.X3 = initial_drag_coords.X3 + offsetX;
+            obj.Y3 = initial_drag_coords.Y3 + offsetY;
         }
+        if (obj.type === "Brush") {
+            if (!initial_drag_coords.points) {
+                return;
+            }
+
+            for (let i = 0; i < obj.points.length; i++) {
+                obj.points[i].x = initial_drag_coords.points[i].x + offsetX;
+                obj.points[i].y = initial_drag_coords.points[i].y + offsetY;
+            }
+        }
+        render();
+        return;
     }
+
+    if (Resizing && state.selected) {
+        let obj = state.selected;
  
-    if (obj.type === "Square") {
-        if (ResizeHandle === "top-left") {
-            let size = obj.width + (obj.x - pos.x);
-            obj.x = pos.x;
-            obj.y = pos.y;
-            obj.width = size;
-            obj.height = size;
+        if (obj.type === "Rectangle") {
+            if (ResizeHandle === "bottom-right") {
+                obj.width = pos.x - obj.x;
+                obj.height = pos.y - obj.y;
+            }
+            if (ResizeHandle === "top-left") {
+                obj.width = obj.width + (obj.x - pos.x);
+                obj.height = obj.height + (obj.y - pos.y);
+                obj.x = pos.x;
+                obj.y = pos.y;
+            }
+            if (ResizeHandle === "top-right") {
+                obj.width = pos.x - obj.x;
+                obj.height = obj.height + (obj.y - pos.y);
+                obj.y = pos.y;
+            }
+            if (ResizeHandle === "bottom-left") {
+                obj.width = obj.width + (obj.x - pos.x);
+                obj.x = pos.x;
+                obj.height = pos.y - obj.y;
+            }
         }
  
-        if (ResizeHandle === "top-right") {
-            let size = pos.x - obj.x;
-            obj.y = pos.y;
-            obj.width = size;
-            obj.height = size;
-        }
- 
-        if (ResizeHandle === "bottom-right") {
-            let size = pos.x - obj.x;
-            obj.width = size;
-            obj.height = size;
-        }
- 
-        if (ResizeHandle === "bottom-left") {
-            let size = obj.width + (obj.x - pos.x);
-            obj.x = pos.x;
-            obj.width = size;
-            obj.height = size;
-        }
-    }
- 
-    if (obj.type === "Circle") {
-        let dx = pos.x - obj.x;
-        let dy = pos.y - obj.y;
-        obj.rad = Math.sqrt(dx * dx + dy * dy);
-    }
- 
-    if (obj.type === "Line") {
-        if (ResizeHandle === "top-left") {
-            obj.x = pos.x;
-            obj.y = pos.y;
-        }
-        if (ResizeHandle === "bottom-right") {
-            obj.lastX = pos.x;
-            obj.lastY = pos.y;
-        }
-    }
- 
-    if (obj.type === "Triangle") {
-        let left = Math.min(obj.X1, obj.X2, obj.X3);
-        let right = Math.max(obj.X1, obj.X2, obj.X3);
-        let top = Math.min(obj.Y1, obj.Y2, obj.Y3);
-        let bottom = Math.max(obj.Y1, obj.Y2, obj.Y3);
-        let width = right - left;
-        let height = bottom - top;
-        if (width < 1 || height < 1) {
-            render();
-            return;
-        }
-        if (ResizeHandle === "bottom-right") {
-            let new_w = pos.x - left;
-            let new_h = pos.y - top;
-            if (new_w < 1 || new_h < 1) { 
-                render(); 
-                return; 
+        if (obj.type === "Square") {
+            if (ResizeHandle === "top-left") {
+                let size = obj.width + (obj.x - pos.x);
+                obj.x = pos.x;
+                obj.y = pos.y;
+                obj.width = size;
+                obj.height = size;
             }
  
-            let scaleX = new_w / width;
-            let scaleY = new_h / height;
+            if (ResizeHandle === "top-right") {
+                let size = pos.x - obj.x;
+                obj.y = pos.y;
+                obj.width = size;
+                obj.height = size;
+            }
  
-            obj.X1 = left + (obj.X1 - left) * scaleX;
-            obj.Y1 = top + (obj.Y1 - top) * scaleY;
-            obj.X2 = left + (obj.X2 - left) * scaleX;
-            obj.X3 = left + (obj.X3 - left) * scaleX;
-            obj.Y2 = top + (obj.Y2 - top) * scaleY;
-            obj.Y3 = top + (obj.Y3 - top) * scaleY;
-    }
+            if (ResizeHandle === "bottom-right") {
+                let size = pos.x - obj.x;
+                obj.width = size;
+                obj.height = size;
+            }
  
-        if (ResizeHandle=== "top-left") {
- 
-            let new_w = right - pos.x;
-            let new_h = bottom - pos.y;
-            let scaleX = new_w / width;
-            let scaleY = new_h / height;
- 
-            obj.X1 = right - (right - obj.X1) * scaleX;
-            obj.X2 = right - (right - obj.X2) * scaleX;
-            obj.X3 = right - (right - obj.X3) * scaleX;
-            obj.Y1 = bottom - (bottom - obj.Y1) * scaleY;
-            obj.Y2 = bottom - (bottom - obj.Y2) * scaleY;
-            obj.Y3 = bottom - (bottom - obj.Y3) * scaleY;
+            if (ResizeHandle === "bottom-left") {
+                let size = obj.width + (obj.x - pos.x);
+                obj.x = pos.x;
+                obj.width = size;
+                obj.height = size;
+            }
         }
  
-        if (ResizeHandle === "top-right") {
-            let new_w = pos.x - left;
-            let new_h = bottom - pos.y;
-            let scaleX = new_w / width;
-            let scaleY = new_h / height;
- 
-            obj.X1 = left + (obj.X1 - left) * scaleX;
-            obj.X2 = left + (obj.X2 - left) * scaleX;
-            obj.X3 = left + (obj.X3 - left) * scaleX;
-            obj.Y1 = bottom - (bottom - obj.Y1) * scaleY;
-            obj.Y2 = bottom - (bottom - obj.Y2) * scaleY;
-            obj.Y3 = bottom - (bottom - obj.Y3) * scaleY;
+        if (obj.type === "Circle") {
+            let dx = pos.x - obj.x;
+            let dy = pos.y - obj.y;
+            obj.rad = Math.sqrt(dx * dx + dy * dy);
         }
  
-        if (ResizeHandle === "bottom-left") {
-            let new_w = right - pos.x;
-            let new_h = pos.y - top;
- 
-            let scaleX = new_w / width;
-            let scaleY = new_h / height;
- 
-            obj.X1 = right - (right - obj.X1) * scaleX;
-            obj.X2 = right - (right - obj.X2) * scaleX;
-            obj.X3 = right - (right - obj.X3) * scaleX;
- 
-            obj.Y1 = top + (obj.Y1 - top) * scaleY;
-            obj.Y2 = top + (obj.Y2 - top) * scaleY;
-            obj.Y3 = top + (obj.Y3 - top) * scaleY;
-        }
-    }
-    if (obj.type === "Image") {
-        if (ResizeHandle === "bottom-right") {
-            obj.width = pos.x - obj.x;
-            obj.height = pos.y - obj.y;
+        if (obj.type === "Line") {
+            if (ResizeHandle === "top-left") {
+                obj.x = pos.x;
+                obj.y = pos.y;
+            }
+            if (ResizeHandle === "bottom-right") {
+                obj.lastX = pos.x;
+                obj.lastY = pos.y;
+            }
         }
  
-        if (ResizeHandle === "top-left") {
-            obj.width = obj.width + (obj.x - pos.x);
-            obj.height = obj.height + (obj.y - pos.y);
-            obj.x = pos.x;
-            obj.y = pos.y;
-        }
+        if (obj.type === "Triangle") {
+            let left = Math.min(obj.X1, obj.X2, obj.X3);
+            let right = Math.max(obj.X1, obj.X2, obj.X3);
+            let top = Math.min(obj.Y1, obj.Y2, obj.Y3);
+            let bottom = Math.max(obj.Y1, obj.Y2, obj.Y3);
+            let width = right - left;
+            let height = bottom - top;
+            if (width < 1 || height < 1) {
+                render();
+                return;
+            }
+            if (ResizeHandle === "bottom-right") {
+                let new_w = pos.x - left;
+                let new_h = pos.y - top;
+                if (new_w < 1 || new_h < 1) { 
+                    render(); 
+                    return; 
+                }
  
-        if (ResizeHandle === "top-right") {
-            obj.width = pos.x - obj.x;
-            obj.height = obj.height + (obj.y - pos.y);
-            obj.y = pos.y;
-        }
+                let scaleX = new_w / width;
+                let scaleY = new_h / height;
  
-        if (ResizeHandle === "bottom-left") {
-            obj.width = obj.width + (obj.x - pos.x);
-            obj.x = pos.x;
-            obj.height = pos.y - obj.y;
-        }
-    }
+                obj.X1 = left + (obj.X1 - left) * scaleX;
+                obj.Y1 = top + (obj.Y1 - top) * scaleY;
+                obj.X2 = left + (obj.X2 - left) * scaleX;
+                obj.X3 = left + (obj.X3 - left) * scaleX;
+                obj.Y2 = top + (obj.Y2 - top) * scaleY;
+                obj.Y3 = top + (obj.Y3 - top) * scaleY;
+            }
+ 
+            if (ResizeHandle=== "top-left") {
+ 
+                let new_w = right - pos.x;
+                let new_h = bottom - pos.y;
+                let scaleX = new_w / width;
+                let scaleY = new_h / height;
+ 
+                obj.X1 = right - (right - obj.X1) * scaleX;
+                obj.X2 = right - (right - obj.X2) * scaleX;
+                obj.X3 = right - (right - obj.X3) * scaleX;
+                obj.Y1 = bottom - (bottom - obj.Y1) * scaleY;
+                obj.Y2 = bottom - (bottom - obj.Y2) * scaleY;
+                obj.Y3 = bottom - (bottom - obj.Y3) * scaleY;
+            }
+ 
+            if (ResizeHandle === "top-right") {
+                let new_w = pos.x - left;
+                let new_h = bottom - pos.y;
+                let scaleX = new_w / width;
+                let scaleY = new_h / height;
+ 
+                obj.X1 = left + (obj.X1 - left) * scaleX;
+                obj.X2 = left + (obj.X2 - left) * scaleX;
+                obj.X3 = left + (obj.X3 - left) * scaleX;
+                obj.Y1 = bottom - (bottom - obj.Y1) * scaleY;
+                obj.Y2 = bottom - (bottom - obj.Y2) * scaleY;
+                obj.Y3 = bottom - (bottom - obj.Y3) * scaleY;
+            }
+ 
+            if (ResizeHandle === "bottom-left") {
+                let new_w = right - pos.x;
+                let new_h = pos.y - top;
+ 
+                let scaleX = new_w / width;
+                let scaleY = new_h / height;
+ 
+                obj.X1 = right - (right - obj.X1) * scaleX;
+                obj.X2 = right - (right - obj.X2) * scaleX;
+                obj.X3 = right - (right - obj.X3) * scaleX;
+ 
+                obj.Y1 = top + (obj.Y1 - top) * scaleY;
+                obj.Y2 = top + (obj.Y2 - top) * scaleY;
+                obj.Y3 = top + (obj.Y3 - top) * scaleY;
+            }
+        }   
+        if (obj.type === "Image") {
+            if (ResizeHandle === "bottom-right") {
+                obj.width = pos.x - obj.x;
+                obj.height = pos.y - obj.y;
+            }
     
-    if (obj.type === "Text") {
- 
-        if (ResizeHandle === "bottom-right") {
-            obj.width = pos.x - obj.x;
-            obj.height = pos.y - obj.y;
+            if (ResizeHandle === "top-left") {
+                obj.width = obj.width + (obj.x - pos.x);
+                obj.height = obj.height + (obj.y - pos.y);
+                obj.x = pos.x;
+                obj.y = pos.y;
+            }
+    
+            if (ResizeHandle === "top-right") {
+                obj.width = pos.x - obj.x;
+                obj.height = obj.height + (obj.y - pos.y);
+                obj.y = pos.y;
+            }
+    
+            if (ResizeHandle === "bottom-left") {
+                obj.width = obj.width + (obj.x - pos.x);
+                obj.x = pos.x;
+                obj.height = pos.y - obj.y;
+            }
         }
- 
-        if (ResizeHandle === "top-left") {
-            obj.width = obj.width + (obj.x - pos.x);
-            obj.height = obj.height + (obj.y - pos.y);
-            obj.x = pos.x;
-            obj.y = pos.y;
+    
+        if (obj.type === "Text") {
+    
+            if (ResizeHandle === "bottom-right") {
+                obj.width = pos.x - obj.x;
+                obj.height = pos.y - obj.y;
+            }
+    
+            if (ResizeHandle === "top-left") {
+                obj.width = obj.width + (obj.x - pos.x);
+                obj.height = obj.height + (obj.y - pos.y);
+                obj.x = pos.x;
+                obj.y = pos.y;
+            }
+    
+            if (ResizeHandle === "top-right") {
+                obj.width = pos.x - obj.x;
+                obj.height = obj.height + (obj.y - pos.y);
+                obj.y = pos.y;
+            }
+    
+            if (ResizeHandle === "bottom-left") {
+                obj.width = obj.width + (obj.x - pos.x);
+                obj.x = pos.x;
+                obj.height = pos.y - obj.y;
+            }
         }
- 
-        if (ResizeHandle === "top-right") {
-            obj.width = pos.x - obj.x;
-            obj.height = obj.height + (obj.y - pos.y);
-            obj.y = pos.y;
-        }
- 
-        if (ResizeHandle === "bottom-left") {
-            obj.width = obj.width + (obj.x - pos.x);
-            obj.x = pos.x;
-            obj.height = pos.y - obj.y;
-        }
+    
+        render();   
+        return;   
     }
- 
-    render();   
-    return;   
-}
-if (Drawing === false) {
-    return;
-  }
+    if (Drawing === false) {
+        return;
+    }
     if (state.tool==="Brush"){
         if (Stroke.brush_style==="pen"){
             tool.strokeStyle = Stroke.stroke;
@@ -1469,7 +1558,10 @@ if (Drawing === false) {
             tool.moveTo(X, Y);
             tool.lineTo(pos.x, pos.y);
             tool.stroke();
-            Stroke.points.push({ x: pos.x, y: pos.y });
+            Stroke.points.push({
+                x: pos.x,
+                y: pos.y    
+            });
         }
         else if (Stroke.brush_style === "spray") {
             tool.fillStyle = Stroke.stroke;
@@ -1557,10 +1649,19 @@ canvas.addEventListener("mouseup", function(e) {
     }
 
     if (Resizing) {
+        Resizing = false;
+        ResizeHandle = null;
         Save();
+        return;
     }
-    Resizing = false;
-    ResizeHandle = null;
+
+    if (Draggin) {
+        Draggin=false;
+        initial_drag_coords={};
+        Save();
+        return;
+    }
+
     const pos = Uniform_pos(e);
     if (Drawing===false) {
         return;
@@ -1569,14 +1670,6 @@ canvas.addEventListener("mouseup", function(e) {
     if (state.tool === "Brush") {
         Drawing = false;
         const rect = canvas.getBoundingClientRect();
-        state.objects.push(Stroke);
-        Save();
-        Stroke = null;
-        render();
-    }
-    if (state.tool === "Brush" && Stroke) {
-        Drawing = false;
-        BrushCursor.style.display = "none";
         state.objects.push(Stroke);
         Save();
         Stroke = null;
@@ -1707,6 +1800,7 @@ canvas.addEventListener("mouseleave", function(e) {
   rotating = false;
   current = null;
   Drawing = false;
+  Draggin=false;
 });
 
 const theme = document.querySelector(".mode");
