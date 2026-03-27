@@ -203,4 +203,18 @@ body.dark-mode .control input[type="range"] {
     background-color: black;
     color: white;
 }
+#addImageURL, #addRandomImage {
+    font-size: 0.72rem;
+    padding: 3px 6px;
+    border-radius: 6px;
+    border: none;
+    background: #8b4fc7;
+    color: white;
+    cursor: pointer;
+    margin-top: 2px;
+    width: 80px;
+}
+#addImageURL:hover, #addRandomImage:hover {
+    background: #6d36a4;
+}
 
