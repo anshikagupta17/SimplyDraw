@@ -58,8 +58,8 @@ resizeCanvas();
 
 let ClearScreen = document.getElementById("Bin");
 ClearScreen.addEventListener("click", function() {
-    for (let i = 0; i < state.objects.length; i++) {
-        state.history.push(state.objects[i]);
+    if (state.objects.length > 0) {
+        state.history.push([...state.objects]);
     }
     state.objects = [];
     tool.clearRect(0, 0, canvas.width, canvas.height);
@@ -72,19 +72,26 @@ ClearScreen.addEventListener("click", function() {
 
 let Undo = document.getElementById("Undo");
 Undo.addEventListener("click", function() {
-    if (state.objects.length === 0) {
-        return;
-    }
-    state.history.push(state.objects.pop());
-    Save();
-    render();
+    Undo_Z();
 });
 
-function Undo_Z(){
-    if (state.objects.length === 0) {
+function Undo_Z() {
+    if (state.history.length === 0) {
         return;
     }
-    state.history.push(state.objects.pop());
+    let last = state.history.pop();
+    if (!last) {
+        return;
+    }
+
+    if (Array.isArray(last)) {
+        if (state.objects.length > 0) {
+            state.history.push([...state.objects]);
+        }
+        state.objects = last;
+    } else {
+        state.objects.push(last);
+    }
     Save();
     render();
 }
@@ -100,12 +107,20 @@ document.addEventListener("keydown",function(e){
 
 let Redo = document.getElementById("Redo");
 Redo.addEventListener("click", function() {
-  if (state.history.length === 0) {
-    return;
-  }
-  state.objects.push(state.history.pop());
-  Save();
-  render();
+    if (state.history.length === 0) return;
+    let last = state.history[state.history.length - 1];
+
+    if (Array.isArray(last)) {
+        if (state.objects.length > 0) {
+            state.history.push([...state.objects]);
+        }
+        state.objects = [];
+    } else {
+        state.objects.push(state.history.pop());
+    }
+
+    Save();
+    render();
 });
 
 // image logic
@@ -554,7 +569,9 @@ function render() {
             tool.strokeStyle = current.stroke;
             tool.lineWidth = current.StrokeWidth;
             tool.lineCap = "round";
-            tool.setLineDash([10,8]);
+            let dash = current.StrokeWidth * 2;
+            let gap = current.StrokeWidth * 1.5;
+            tool.setLineDash([dash, gap]);
             if (points.length > 0) {
                 tool.beginPath();
                 tool.moveTo(points[0].x, points[0].y);
@@ -785,24 +802,56 @@ function Sidework() {
     if (v_size) {
         v_size.addEventListener("input", function(e) {
             state.size = Math.max(1, parseInt(e.target.value));
+            if (state.selected) {
+                if (state.selected.type === "Text"){
+                    state.selected.fontSize = state.size;
+                }
+                else{
+                    state.selected.StrokeWidth = state.size;
+                }
+                render(); 
+                Save();
+        }
+
         });
     }
 
     if (v_fill) {
         v_fill.addEventListener("input", function(e) {
             state.fill = e.target.value;
+            if (state.selected) {
+                if (state.selected.type === "Line" || state.selected.type === "Brush"){
+                state.selected.stroke = e.target.value;
+                }
+                else{
+                    state.selected.fill = e.target.value;
+                }
+                render(); 
+                Save();
+            }
         });
     }
 
     if (v_color) {
         v_color.addEventListener("input", function(e) {
             state.stroke = e.target.value;
+            if (state.selected) { 
+                state.selected.stroke = e.target.value; 
+                render(); 
+                Save(); 
+            }
         });
     }
 
     if (v_border) {
         v_border.addEventListener("input", function(e) {
             state.border = e.target.value;
+            if (state.selected) { 
+                state.selected.stroke = e.target.value; 
+                render(); 
+                Save(); 
+            }
+
         });
     }
 
@@ -839,11 +888,21 @@ function Sidework() {
     if (v_opacity){
         v_opacity.addEventListener("input", function(e){
             state.opacity= parseFloat(e.target.value);
+            if (state.selected) { 
+                state.selected.opacity = state.opacity; 
+                render(); 
+                Save(); 
+            }
         });
     }
     if (v_style) {
         v_style.addEventListener("change", function(e){
             state.brush_style = e.target.value;
+            if (state.selected) { 
+                state.selected.brush_style = e.target.value; 
+                render(); 
+                Save(); 
+            }
         });
     }
 }
@@ -887,7 +946,7 @@ function CreateTextBox(screen_x, screen_y, canvas_x, canvas_y) {
     box.style.overflow = "hidden";
     box.style.padding = "2px";
     box.style.outline = "none";
-    box.style.zIndex = "1000";
+    box.style.zIndex = "9999";
     box.dataset.id = count+1;
 
     document.body.appendChild(box);
@@ -1211,6 +1270,18 @@ canvas.addEventListener("mousedown", function(e) {
             }
 
         }
+        if (state.selected) {
+            state.fill   = state.selected.fill   || state.fill;
+            state.border = state.selected.stroke || state.border;
+            state.stroke = state.selected.stroke || state.stroke;
+            state.size   = state.selected.StrokeWidth || state.selected.fontSize || state.size;
+            state.opacity = state.selected.opacity !== undefined ? state.selected.opacity : state.opacity;
+            state.brush_style = state.selected.brush_style || state.brush_style;
+            Sidebar(state.selected.type);
+        } 
+        else {
+            panel.innerHTML = "";
+        }
         render();
         return;
     }
@@ -1428,7 +1499,7 @@ canvas.addEventListener("mousemove", function(e) {
             if (ResizeHandle === "bottom-right") {
                 let new_w = pos.x - left;
                 let new_h = pos.y - top;
-                if (new_w < 1 || new_h < 1) { 
+                if (new_w < 5 || new_h < 5 || width < 1 || height < 1) { 
                     render(); 
                     return; 
                 }
@@ -1448,6 +1519,10 @@ canvas.addEventListener("mousemove", function(e) {
  
                 let new_w = right - pos.x;
                 let new_h = bottom - pos.y;
+                if (new_w < 5 || new_h < 5 || width < 1 || height < 1) { 
+                    render(); 
+                    return; 
+                }
                 let scaleX = new_w / width;
                 let scaleY = new_h / height;
  
@@ -1462,6 +1537,10 @@ canvas.addEventListener("mousemove", function(e) {
             if (ResizeHandle === "top-right") {
                 let new_w = pos.x - left;
                 let new_h = bottom - pos.y;
+                if (new_w < 5 || new_h < 5 || width < 1 || height < 1) { 
+                    render(); 
+                    return; 
+                }
                 let scaleX = new_w / width;
                 let scaleY = new_h / height;
  
@@ -1476,7 +1555,10 @@ canvas.addEventListener("mousemove", function(e) {
             if (ResizeHandle === "bottom-left") {
                 let new_w = right - pos.x;
                 let new_h = pos.y - top;
- 
+                if (new_w < 5 || new_h < 5 || width < 1 || height < 1) { 
+                    render(); 
+                    return; 
+                }
                 let scaleX = new_w / width;
                 let scaleY = new_h / height;
  
@@ -1579,7 +1661,9 @@ canvas.addEventListener("mousemove", function(e) {
             tool.strokeStyle = Stroke.stroke;
             tool.lineWidth = Stroke.StrokeWidth;
             tool.lineCap = "round";
-            tool.setLineDash([10, 8]);
+            let dash = Stroke.StrokeWidth * 2;
+            let gap = Stroke.StrokeWidth * 1.5;
+            tool.setLineDash([dash, gap]);
             tool.beginPath();
             tool.moveTo(X, Y);
             tool.lineTo(pos.x, pos.y);

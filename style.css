@@ -2,6 +2,7 @@ body {
     margin: 0; 
     display: flex;
     flex-direction: column;
+    height: 100dvh 
 }
 body.dark-mode {
     margin: 0; 
@@ -9,6 +10,7 @@ body.dark-mode {
     flex-direction: column;
     background-color: black;
     color: white;
+    height: 100dvh;
 }
 .tools {
     display: flex;
@@ -17,7 +19,7 @@ body.dark-mode {
     background: #d3c2e4;
     justify-content: center;
     align-items: center;
-    width: 80%;
+    width: 92%;
     max-width: 600px;
     margin: 0 auto;
     box-shadow: 0 4px 10px rgba(139, 75, 179, 0.08);
@@ -79,28 +81,43 @@ button img.dark-mode {
 
 .Workspace {
     display: flex;
+    flex: 1;
+    min-height: 0;  
+    overflow: hidden;       
 }
 .Workspace.dark-mode {
     display: flex;
     background-color: black;
     color: white;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
 }
 
 
 .Canvas {
-    flex: 1
+    flex: 1;
+    position: relative;
+    z-index: 1;
+    touch-action: none;
+    min-width: 0; 
 }
 .Canvas.dark-mode {
     flex: 1;
     background-color: black;
     color: white;
+    touch-action: none;
+    position: relative;
+    z-index: 1;
+    min-width: 0; 
 }
 
 #Canvas {
     width: 100%;
     height: 100%;
     display: block;
-    position: relative
+    position: relative;
+    touch-action: none;
 }
 #Canvas.dark-mode {
     width: 100%;
@@ -109,6 +126,7 @@ button img.dark-mode {
     position: relative;
     background-color: black;
     color: white;
+    touch-action: none;
 }
 .panel {
     display: flex;
@@ -127,6 +145,7 @@ button img.dark-mode {
     font-family: Papyrus, monospace;
     color: black;
     text-decoration: underline black;
+
 }
 .panel.dark-mode {
     display: flex;
@@ -217,4 +236,130 @@ body.dark-mode .control input[type="range"] {
 #addImageURL:hover, #addRandomImage:hover {
     background: #6d36a4;
 }
+.head {
+    flex-shrink: 0; 
+    padding: 4px 0;
+}
 
+
+@media (max-width: 768px) {
+    .tools {
+        width: 96%;
+        gap: 0.3rem;
+        padding: 0.4rem 0.5rem;
+        transform: translateY(3px);
+    }
+ 
+    button img {
+        width: 20px;
+        height: 20px;
+    }
+ 
+    .tools button {
+        min-width: 34px;
+        min-height: 34px;
+    }
+ 
+    .Workspace {
+        flex-direction: column-reverse;
+    }
+ 
+    .panel {
+        flex-direction: row;
+        flex-wrap: wrap;
+        width: 100%;
+        height: auto;
+        margin: 0;
+        border-radius: 0;
+        padding: 0.5rem;
+        overflow-x: auto;
+        overflow-y: hidden;
+        align-items: flex-start;
+        border-left: none;
+        border-right: none;
+    }
+ 
+    .panel h2 {
+        width: 100%;
+        font-size: 0.8rem;
+        margin-bottom: 0.2rem;
+    }
+ 
+    .control {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.3rem;
+        margin-bottom: 4px;
+        min-width: 120px;
+    }
+ 
+    .control input[type="range"] {
+        width: 80px;
+        max-width: 80px;
+    }
+ 
+    .Canvas {
+        flex: 1;
+    }
+}
+
+@media (max-width: 480px) {
+    .tools {
+        width: 100%;
+        border-radius: 0;
+        transform: none;
+        max-width: none;
+        padding: 0.35rem 0.4rem;
+        gap: 0.25rem;
+    }
+ 
+    button img {
+        width: 18px;
+        height: 18px;
+    }
+ 
+    .tools button {
+        min-width: 30px;
+        min-height: 30px;
+        padding: 3px;
+    }
+ 
+    .panel {
+        padding: 0.4rem;
+        gap: 0.4rem;
+    }
+ 
+    .control {
+        min-width: 100px;
+    }
+ 
+    .control input[type="range"] {
+        width: 60px;
+        max-width: 60px;
+    }
+ 
+    .control input[type="number"] {
+        width: 44px;
+    }
+ 
+    .control label {
+        font-size: 0.7rem;
+    }
+}
+
+@media (min-width: 1200px) {
+    .tools {
+        max-width: 700px;
+    }
+ 
+    .panel {
+        width: 50px;
+        margin: 1rem;
+    }
+ 
+    button img {
+        width: 24px;
+        height: 24px;
+    }
+}
