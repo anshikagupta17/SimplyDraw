@@ -237,6 +237,6 @@ body.dark-mode .control input[type="range"] {
         height: 18px;
     }
     .Canvas {
-        min-height: 400px; /* ensures canvas is usable */
+        min-height: 400px;
     }
 }

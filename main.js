@@ -1,3 +1,13 @@
+const TOOLS = {
+  rectangle: "Rectangle",
+  square: "Square",
+  circle: "Circle",
+  triangle: "Triangle",
+  line: "Line",
+  brush: "Brush",
+  text: "Text",
+  image: "Image"
+};
 const state = {
   tool: null,
   stroke: "#000000",
@@ -59,9 +69,10 @@ resizeCanvas();
 
 let ClearScreen = document.getElementById("Bin");
 ClearScreen.addEventListener("click", function() {
-    for (let i = 0; i < state.objects.length; i++) {
-        state.history.push(state.objects[i]);
+    if (state.objects.length===0){
+        return;
     }
+    state.redoStack.push([...state.objects]);
     state.objects = [];
     tool.clearRect(0, 0, canvas.width, canvas.height);
     localStorage.removeItem("drawing");
@@ -101,12 +112,19 @@ document.addEventListener("keydown",function(e){
 
 let Redo = document.getElementById("Redo");
 Redo.addEventListener("click", function() {
-  if (state.history.length === 0) {
-    return;
-  }
-  state.objects.push(state.history.pop());
-  Save();
-  render();
+
+    if (state.redoStack.length > 0) {
+        state.objects = state.redoStack.pop();
+        Save();
+        render();
+        return;
+    }
+    if (state.history.length === 0) {
+        return;
+    }
+    state.objects.push(state.history.pop());
+    Save();
+    render();
 });
 
 
@@ -125,7 +143,7 @@ function Insert_Image(){
         let item = {};
         count+=1;
         item.id = count;
-        item.type = "Image";
+        item.type = TOOLS.image;
         item.x = Math.random() * canvas.width;
         item.y = Math.random() * canvas.height;
         item.width = img.width;
@@ -143,7 +161,7 @@ function Insert_Image(){
 function Sidebar(tool) {
     panel.innerHTML = "";
 
-    if (tool === "Rectangle" || tool === "Square" || tool === "Circle" || tool === "Triangle") {
+    if (tool === TOOLS.rectangle || tool === TOOLS.square || tool === TOOLS.circle || tool === TOOLS.triangle) {
         panel.innerHTML = `
         <div class="control">
             <label>Colour</label>
@@ -164,7 +182,7 @@ function Sidebar(tool) {
         `;
     }
 
-    if (tool === "Line" ) {
+    if (tool === TOOLS.line ) {
         panel.innerHTML = `
         <div class="control">
             <label>Colour</label>
@@ -181,7 +199,7 @@ function Sidebar(tool) {
         `;
     }
 
-    if (tool === "Brush") {
+    if (tool === TOOLS.brush) {
         panel.innerHTML = `
         <div class="control">
             <label>Colour</label>
@@ -205,7 +223,7 @@ function Sidebar(tool) {
         </div>
         `;
     } 
-    if (tool === "Text") {
+    if (tool === TOOLS.text) {
         state.size = 20;
         panel.innerHTML = `
         <div class="control">
@@ -229,7 +247,11 @@ function Sidebar(tool) {
 
 function Clicked(event) {
   let ClickedButton = event.currentTarget;
+  state.selected=null
+  render();
+
   state.tool = ClickedButton.id;
+
   for (let i = 0; i < buttons.length; i++) {
     buttons[i].classList.remove("active");
   }
@@ -500,6 +522,35 @@ function LineDetector(line,x,y){
 
 }
 
+function DrawRotatedBox(current) {
+    tool.save();
+
+    let cx = current.x + current.width / 2;
+    let cy = current.y + current.height / 2;
+
+    tool.translate(cx, cy);
+    tool.rotate(current.rotation || 0);
+
+    let w = current.width;
+    let h = current.height;
+
+    tool.strokeStyle = "blue";
+    tool.lineWidth = 2;
+    tool.strokeRect(-w / 2, -h / 2, w, h);
+
+    let area = {
+        x: -w / 2,
+        y: -h / 2,
+        width: w,
+        height: h
+    };
+
+    ResizingShapes(area);
+    ResizeRotateHandle(area);
+
+    tool.restore();
+}
+
 function ObjectClick(area,x,y){
     let horizontal=false;
     let vertical= false;
@@ -525,7 +576,7 @@ function render() {
     let current = state.objects[i];
 
     // brush
-    if (current.type === "Brush") {
+    if (current.type === TOOLS.brush) {
         tool.globalAlpha = current.opacity !== undefined ? current.opacity : 1;
         let points = current.points;
         let style = current.brush_style || "pen";
@@ -580,35 +631,30 @@ function render() {
 }
 
     // shapes
-    if (current.type === "Rectangle") {
-      tool.globalAlpha = current.opacity !== undefined ? current.opacity : 1;
-      tool.save();
-      let cx = current.x + current.width / 2;
-      let cy = current.y + current.height / 2;
-      tool.translate(cx, cy);
-      tool.rotate(current.rotation || 0);
-      tool.fillStyle = current.fill;
-      tool.strokeStyle = current.stroke;
-      tool.lineWidth = current.StrokeWidth;
-      tool.fillRect(-current.width/2, -current.height/2, current.width, current.height);   
-      tool.strokeRect(-current.width/2, -current.height/2, current.width, current.height); 
-      if (state.selected===current){
-        tool.strokeStyle="blue";
-        tool.lineWidth=3;
-        tool.strokeRect(-current.width/2, -current.height/2, current.width, current.height);
-        tool.restore();
-        tool.globalAlpha = 1;
-        let area = RectangleSelection(current);
-        ResizingShapes(area);
-        ResizeRotateHandle(area);
-      }
-      else {
-        tool.restore();
-        tool.globalAlpha = 1;
-      }
+    if (current.type === TOOLS.rectangle) {
+        tool.globalAlpha = current.opacity !== undefined ? current.opacity : 1;
+        tool.save();
+        let cx = current.x + current.width / 2;
+        let cy = current.y + current.height / 2;
+        tool.translate(cx, cy);
+        tool.rotate(current.rotation || 0);
+        tool.fillStyle = current.fill;
+        tool.strokeStyle = current.stroke;
+        tool.lineWidth = current.StrokeWidth;
+        tool.fillRect(-current.width/2, -current.height/2, current.width, current.height);   
+        tool.strokeRect(-current.width/2, -current.height/2, current.width, current.height); 
+        if (state.selected === current) {
+            tool.restore();
+            tool.globalAlpha = 1;
+            DrawRotatedBox(current);
+        }
+        else {
+            tool.restore();
+            tool.globalAlpha = 1;
+        }
     }
 
-    if (current.type === "Square") {
+    if (current.type === TOOLS.square) {
       tool.globalAlpha = current.opacity !== undefined ? current.opacity : 1;
       tool.save();
       let cx = current.x + current.width / 2;
@@ -620,42 +666,37 @@ function render() {
       tool.lineWidth = current.StrokeWidth;
       tool.fillRect(-current.width/2, -current.height/2, current.width, current.height);
       tool.strokeRect(-current.width/2, -current.height/2, current.width, current.height);
-      if (state.selected===current){
-        tool.strokeStyle="blue";
-        tool.lineWidth=3;
-        tool.strokeRect(-current.width/2, -current.height/2, current.width, current.height);
-        tool.restore();
-        tool.globalAlpha = 1;
-        let area = SquareSelector(current);
-        ResizingShapes(area);
-        ResizeRotateHandle(area);
-      } else {
+      if (state.selected === current) {
+            tool.restore();
+            tool.globalAlpha = 1;
+            DrawRotatedBox(current);
+      }
+      else {
         tool.restore();
         tool.globalAlpha = 1;
       }
     }
  
-    if (current.type === "Circle") {
-      tool.globalAlpha = current.opacity !== undefined ? current.opacity : 1;
-      tool.beginPath();
-      tool.arc(current.x, current.y, current.rad, 0, Math.PI * 2);
-      tool.fillStyle = current.fill;
-      tool.strokeStyle = current.stroke;
-      tool.lineWidth = current.StrokeWidth;
-      tool.fill();
-      tool.stroke();
-      tool.globalAlpha = 1;
-      if (state.selected===current){
-        let area = CircleSelector(current);
-        tool.strokeStyle="blue";
-        tool.lineWidth=3;
-        tool.strokeRect(area.x, area.y, area.width, area.height);
-        ResizingShapes(area);
-        ResizeRotateHandle(area);
-      }
+    if (current.type === TOOLS.circle) {
+        tool.save();
+        tool.globalAlpha = current.opacity !== undefined ? current.opacity : 1;
+        tool.beginPath();
+        tool.arc(current.x, current.y, current.rad, 0, Math.PI * 2);
+        tool.fillStyle = current.fill;
+        tool.strokeStyle = current.stroke;
+        tool.lineWidth = current.StrokeWidth;
+        tool.fill();
+        tool.stroke();
+        if (state.selected===current){
+            let area = CircleSelector(current);
+            tool.strokeStyle="blue";
+            tool.lineWidth=2;
+            tool.strokeRect(area.x, area.y, area.width, area.height);
+            ResizingShapes(area);
+            ResizeRotateHandle(area);
+        }
     }
- 
-    if (current.type === "Triangle") {
+    if (current.type === TOOLS.triangle) {
       tool.globalAlpha = current.opacity !== undefined ? current.opacity : 1;
       tool.save();
       let tcx = (current.X1 + current.X2 + current.X3) / 3;
@@ -690,49 +731,54 @@ function render() {
         tool.closePath();
         tool.stroke();
         tool.restore();
-        ResizingShapes(area);
-        ResizeRotateHandle(area);
+        ResizingShapes(area)
+        ResizeRotateHandle(area)
       }
     }
  
-    if (current.type === "Line") {
-      tool.globalAlpha = current.opacity !== undefined ? current.opacity : 1;
-      tool.save();
-      let lcx = (current.x + current.lastX) / 2;
-      let lcy = (current.y + current.lastY) / 2;
-      tool.translate(lcx, lcy);
-      tool.rotate(current.rotation || 0);
-      tool.beginPath();
-      tool.moveTo(current.x - lcx, current.y - lcy);
-      tool.lineTo(current.lastX - lcx, current.lastY - lcy);
-      tool.fillStyle = current.fill;
-      tool.strokeStyle = current.stroke;
-      tool.lineWidth = current.StrokeWidth;
-      tool.stroke();
-      tool.restore();
-      tool.globalAlpha = 1;
-      if (state.selected===current){
-        let area = LineSelector(current);
-        tool.strokeStyle="blue";
-        tool.lineWidth=3;
+    if (current.type === TOOLS.line) {
+        tool.globalAlpha = current.opacity !== undefined ? current.opacity : 1;
+
         tool.save();
+
         let cx = (current.x + current.lastX) / 2;
         let cy = (current.y + current.lastY) / 2;
+
         tool.translate(cx, cy);
         tool.rotate(current.rotation || 0);
+
+        let dx = current.lastX - current.x;
+        let dy = current.lastY - current.y;
+
         tool.beginPath();
-        tool.moveTo(current.x - cx, current.y - cy); 
-        tool.lineTo(current.lastX - cx, current.lastY - cy);
+        tool.moveTo(-dx/2, -dy/2);
+        tool.lineTo(dx/2, dy/2);
+        tool.strokeStyle = current.stroke;
+        tool.lineWidth = current.StrokeWidth;
         tool.stroke();
+
         tool.restore();
-        ResizingShapes(area);
-        ResizeRotateHandle(area);
-      }
+        tool.globalAlpha = 1;
+        if (state.selected === current) {
+            tool.strokeStyle = "blue";
+            tool.lineWidth = 2;
+            tool.save();
+            tool.translate(cx, cy);
+            tool.rotate(current.rotation || 0);
+            let localArea = {
+                x: -Math.abs(dx)/2, y: -Math.abs(dy)/2,
+                width: Math.abs(dx),  height: Math.abs(dy)
+            };
+            tool.strokeRect(localArea.x, localArea.y, localArea.width, localArea.height);
+            ResizingShapes(localArea);    
+            ResizeRotateHandle(localArea); 
+            tool.restore();
+        }
     }
  
     // image
  
-    if (current.type === "Image" && current.img && current.img.complete) {
+    if (current.type === TOOLS.image && current.img && current.img.complete) {
     tool.save();
     let icx = current.x + current.width / 2;
     let icy = current.y + current.height / 2;
@@ -750,14 +796,13 @@ function render() {
         tool.strokeStyle = "blue";
         tool.lineWidth = 2;
         tool.strokeRect(area.x, area.y, area.width, area.height);
-        ResizingShapes(area);
-        ResizeRotateHandle(area);
+        DrawRotatedBox(current);
     }
     }
  
     // text
  
-    if (current.type === "Text") {
+    if (current.type === TOOLS.text) {
         tool.globalAlpha = current.opacity !== undefined ? current.opacity : 1;
         tool.fillStyle = current.fill;
         let fontSize = current.fontSize || 20;
@@ -790,7 +835,7 @@ function Sidework() {
         v_size.addEventListener("input", function(e) {
             state.size = Math.max(1, parseInt(e.target.value));
             if (state.selected) {
-                if (state.selected.type === "Text"){
+                if (state.selected.type === TOOLS.text){
                     state.selected.fontSize = state.size;
                 }
                 else{
@@ -807,7 +852,7 @@ function Sidework() {
         v_fill.addEventListener("input", function(e) {
             state.fill = e.target.value;
             if (state.selected) {
-                if (state.selected.type === "Line" || state.selected.type === "Brush"){
+                if (state.selected.type === TOOLS.line || state.selected.type === TOOLS.brush){
                 state.selected.stroke = e.target.value;
                 }
                 else{
@@ -857,7 +902,7 @@ function Sidework() {
                     let item = {};
                     count += 1;
                     item.id = count;
-                    item.type = "Image";
+                    item.type = TOOLS.image;
                     item.x = 50 + Math.random() * 200;
                     item.y = 50 + Math.random() * 200;
                     item.width = img.width;
@@ -939,8 +984,6 @@ function CreateTextBox(screen_x, screen_y, canvas_x, canvas_y) {
     document.body.appendChild(box);
     setTimeout(function() { box.focus(); }, 50);
 
-    // Adding the powerpoint text box vibe
-
     box.addEventListener("blur", function() {
         let ctx = canvas.getContext("2d");
         ctx.font = state.size + "px Arial";
@@ -960,7 +1003,7 @@ function CreateTextBox(screen_x, screen_y, canvas_x, canvas_y) {
 
         let item = {};
         item.id = count;
-        item.type = "Text";
+        item.type = TOOLS.text;
         item.x= canvas_x;
         item.y = canvas_y;
         item.text = box.value;
@@ -981,7 +1024,6 @@ function CreateTextBox(screen_x, screen_y, canvas_x, canvas_y) {
         Save();
     });
 }
-
 // Resize
 
 function ResizingShapes(area) {
@@ -1046,7 +1088,6 @@ function ResizeRotateHandle(area) {
     tool.lineWidth = 1;
     tool.stroke();
 }
- 
 
 function Resizing_Corner(area, cursor_x, cursor_y) {
 
@@ -1092,6 +1133,32 @@ function Resizing_Corner(area, cursor_x, cursor_y) {
     return null;
 }
 
+function getRotationCenter(obj) {
+    if (obj.type === TOOLS.rectangle || obj.type === TOOLS.square || obj.type === TOOLS.image || obj.type ===TOOLS.text)
+        return { x: obj.x + obj.width / 2, y: obj.y + obj.height / 2 };
+    if (obj.type === TOOLS.circle)
+        return { x: obj.x, y: obj.y };
+    if (obj.type === TOOLS.line)
+        return { x: (obj.x + obj.lastX) / 2, y: (obj.y + obj.lastY) / 2 };
+    if (obj.type === TOOLS.triangle)
+        return { x: (obj.X1 + obj.X2 + obj.X3) / 3, y: (obj.Y1 + obj.Y2 + obj.Y3) / 3 };
+    return null;
+}
+
+function unrotatePos(pos, obj) {
+    const center = getRotationCenter(obj);
+    const rotation = obj.rotation || 0;
+    if (!center || rotation === 0) return pos;
+    const dx = pos.x - center.x;
+    const dy = pos.y - center.y;
+    const cos = Math.cos(-rotation);
+    const sin = Math.sin(-rotation);
+    return {
+        x: center.x + dx * cos - dy * sin,
+        y: center.y + dx * sin + dy * cos
+    };
+}
+
 let Drawing = false;
 let X = 0;
 let Y = 0;
@@ -1105,37 +1172,39 @@ canvas.addEventListener("mousedown", function(e) {
 
         let area = null;
 
-        if (state.selected.type === "Rectangle") {
+        if (state.selected.type === TOOLS.rectangle) {
          area = RectangleSelection(state.selected);
         }
 
-        if (state.selected.type === "Square") {
+        if (state.selected.type === TOOLS.square) {
             area = SquareSelector(state.selected);
         }
 
-        if (state.selected.type === "Circle") {
+        if (state.selected.type === TOOLS.circle) {
             area = CircleSelector(state.selected);
         }
 
-        if (state.selected.type === "Triangle") {
+        if (state.selected.type === TOOLS.triangle) {
             area = TriangleSelector(state.selected);
         }
 
-        if (state.selected.type === "Line") {
+        if (state.selected.type === TOOLS.line) {
             area = LineSelector(state.selected);
         }
-        if (state.selected.type === "Image") {
+        if (state.selected.type === TOOLS.image) {
             area = { x: state.selected.x, y: state.selected.y, width: state.selected.width, height: state.selected.height };
         }
-        if (state.selected.type === "Text") {
+        if (state.selected.type === TOOLS.text) {
             area = { x: state.selected.x, y: state.selected.y, width: state.selected.width, height: state.selected.height };
         }       
-        if (state.selected.type === "Brush") {
+        if (state.selected.type === TOOLS.brush) {
             area = BrushSelection(state.selected);
         }
 
         if (area) {
-            let corner = Resizing_Corner(area, pos.x, pos.y);
+            const hitPos = unrotatePos(pos, state.selected);
+        
+            let corner = Resizing_Corner(area, hitPos.x, hitPos.y);
  
             if (corner === "rotate") {
                 rotating = true;
@@ -1150,30 +1219,30 @@ canvas.addEventListener("mousedown", function(e) {
                 Drawing = false;
                 return;
             }
-            if (ObjectClick(area, pos.x, pos.y)) {
+            if (ObjectClick(area, hitPos.x, hitPos.y)) {
                 Draggin=true;
                 drag_x=pos.x;
                 drag_y=pos.y;
 
                 let item= state.selected;
 
-                if (item.type ==="Rectangle" ||item.type ==="Square" || item.type ==="Image" || item.type ==="Text") {
+                if (item.type ===TOOLS.rectangle ||item.type ===TOOLS.square || item.type ===TOOLS.image || item.type === TOOLS.text) {
                     initial_drag_coords={x: item.x, y: item.y};
                 }
 
-                if (item.type === "Circle") {
+                if (item.type === TOOLS.circle) {
                     initial_drag_coords = { x: item.x, y: item.y };
                 }
 
-                if (item.type === "Line") {
+                if (item.type === TOOLS.line) {
                     initial_drag_coords = { x: item.x, y: item.y, lastX: item.lastX, lastY: item.lastY };
                 }
 
-                if (item.type === "Triangle") {
+                if (item.type === TOOLS.triangle) {
                     initial_drag_coords = { X1: item.X1, Y1: item.Y1, X2: item.X2, Y2: item.Y2, X3: item.X3, Y3: item.Y3 };
                 }
 
-                if (item.type==="Brush"){
+                if (item.type === TOOLS.brush){
                     initial_drag_coords.points=[];
                     for (let i=0; i<item.points.length; i++){
                         initial_drag_coords.points.push({x: item.points[i].x, y: item.points[i].y})
@@ -1190,45 +1259,45 @@ canvas.addEventListener("mousedown", function(e) {
 
         for (let i = state.objects.length - 1; i >= 0; i-- ) {
             let item = state.objects[i];
-            if (item.type === "Brush") {
+            if (item.type === TOOLS.brush) {
                 if (BrushDetector(item, pos.x, pos.y)) {
                     state.selected = item;
                     break;
                 }
             }
-            if (item.type==="Rectangle"){
+            if (item.type===TOOLS.rectangle){
                 let area= RectangleSelection(item);;
                 if (ObjectClick(area, pos.x, pos.y)){
                     state.selected=item;
                     break;
                 }
             }
-            if (item.type==="Square"){
+            if (item.type===TOOLS.square){
                 let area= SquareSelector(item);;
                 if (ObjectClick(area, pos.x, pos.y)){
                     state.selected=item;
                     break;
                 }
             }
-            if (item.type === "Circle"){
+            if (item.type === TOOLS.circle){
                 if (ActualCircleDetection(item, pos.x, pos.y)){
                     state.selected = item;
                     break;
                 }
             }
-            if (item.type==="Triangle"){
+            if (item.type===TOOLS.triangle){
                 if (TriangleDetector(item,pos.x,pos.y)){
                     state.selected=item;
                     break;
                 }
             }
-            if (item.type==="Line"){
+            if (item.type===TOOLS.line){
                 if (LineDetector(item, pos.x, pos.y)){
                     state.selected=item;
                     break;
                 }
             }
-            if (item.type === "Image") {
+            if (item.type === TOOLS.image) {
                 let area = {
                     x: item.x,
                     y: item.y,
@@ -1242,7 +1311,7 @@ canvas.addEventListener("mousedown", function(e) {
                 }
             }
 
-            if (item.type === "Text") {
+            if (item.type === TOOLS.text) {
                 let area = {
                     x: item.x,
                     y: item.y,
@@ -1273,19 +1342,19 @@ canvas.addEventListener("mousedown", function(e) {
         return;
     }
     if (
-        state.tool === "Brush" ||
-        state.tool === "Rectangle" ||
-        state.tool === "Square" ||
-        state.tool === "Circle" ||
-        state.tool === "Triangle" ||
-        state.tool === "Line"
+        state.tool === TOOLS.brush ||
+        state.tool === TOOLS.rectangle ||
+        state.tool === TOOLS.square ||
+        state.tool === TOOLS.circle ||
+        state.tool === TOOLS.triangle ||
+        state.tool === TOOLS.line
     ) {
 
     
     Drawing = true;
   }
 
-  if (state.tool === "Brush") {
+  if (state.tool === TOOLS.brush) {
     X = pos.x;
     Y = pos.y;
     Stroke = {};
@@ -1293,35 +1362,35 @@ canvas.addEventListener("mousedown", function(e) {
     Stroke.y = Y;
     count += 1;
     Stroke.id = count;
-    Stroke.type = "Brush";
+    Stroke.type = TOOLS.brush;
     Stroke.points = [{ x: pos.x, y: pos.y }];
     Stroke.stroke = state.stroke;
     Stroke.StrokeWidth = state.size;
     Stroke.opacity = state.opacity;
     Stroke.brush_style = state.brush_style;
-  } else if (state.tool === "Rectangle") {
+  } else if (state.tool === TOOLS.rectangle) {
     Shape_X = pos.x;
     Shape_Y = pos.y;
   }
 
-  if (state.tool === "Square") {
+  if (state.tool === TOOLS.square) {
     Shape_X = pos.x;
     Shape_Y = pos.y;
   }
-  if (state.tool === "Circle") {
+  if (state.tool === TOOLS.circle) {
     Shape_X = pos.x;
     Shape_Y = pos.y;
   }
-  if (state.tool === "Triangle") {
+  if (state.tool === TOOLS.triangle) {
     Shape_X = pos.x;
     Shape_Y = pos.y;
   }
-  if (state.tool === "Line") {
+  if (state.tool === TOOLS.line) {
     Shape_X = pos.x;
     Shape_Y = pos.y;
   }
 
-  if (state.tool === "Text") {
+  if (state.tool === TOOLS.text) {
     const pos = Uniform_pos(e);
     CreateTextBox(e.clientX, e.clientY, pos.x, pos.y);
     return;
@@ -1335,15 +1404,15 @@ canvas.addEventListener("mousemove", function(e) {
   
     if (rotating && current) {
         let cx, cy;
-        if (current.type === "Circle") {
+        if (current.type === TOOLS.circle) {
             cx = current.x;
             cy = current.y;
         } 
-        else if (current.type === "Triangle") {
+        else if (current.type === TOOLS.triangle) {
             cx = (current.X1 + current.X2 + current.X3) / 3;
             cy = (current.Y1 + current.Y2 + current.Y3) / 3;
         } 
-        else if (current.type === "Line") {
+        else if (current.type === TOOLS.line) {
             cx = (current.x + current.lastX) / 2;
             cy = (current.y + current.lastY) / 2;
         }  
@@ -1363,21 +1432,21 @@ canvas.addEventListener("mousemove", function(e) {
         let final_x=initial_drag_coords.x + offsetX;
         let final_y= initial_drag_coords.y + offsetY;
 
-        if (obj.type === "Rectangle" || obj.type === "Square" || obj.type === "Image" || obj.type === "Text") {
+        if (obj.type === TOOLS.rectangle || obj.type === TOOLS.square || obj.type === TOOLS.image || obj.type === TOOLS.text) {
             obj.x = final_x
             obj.y = final_y
         }
-        if (obj.type === "Circle") {
+        if (obj.type === TOOLS.circle) {
             obj.x = final_x
             obj.y = final_y
         }
-        if (obj.type === "Line") {
+        if (obj.type === TOOLS.line) {
             obj.x = final_x
             obj.y = final_y
             obj.lastX = initial_drag_coords.lastX + offsetX;
             obj.lastY = initial_drag_coords.lastY + offsetY;
         }
-        if (obj.type === "Triangle") {
+        if (obj.type === TOOLS.triangle) {
             obj.X1 = initial_drag_coords.X1 + offsetX;
             obj.Y1 = initial_drag_coords.Y1 + offsetY;
             obj.X2 = initial_drag_coords.X2 + offsetX;
@@ -1385,7 +1454,7 @@ canvas.addEventListener("mousemove", function(e) {
             obj.X3 = initial_drag_coords.X3 + offsetX;
             obj.Y3 = initial_drag_coords.Y3 + offsetY;
         }
-        if (obj.type === "Brush") {
+        if (obj.type === TOOLS.brush) {
             if (!initial_drag_coords.points) {
                 return;
             }
@@ -1401,8 +1470,38 @@ canvas.addEventListener("mousemove", function(e) {
 
     if (Resizing && state.selected) {
         let obj = state.selected;
- 
-        if (obj.type === "Rectangle") {
+        if (obj.type === TOOLS.circle && ResizeHandle) {
+            if (ResizeHandle === "bottom-right") {
+                let NewRad = Math.max(pos.x - obj.x, pos.y - obj.y);
+                if (NewRad > 5) obj.rad = NewRad;
+            }
+            if (ResizeHandle === "top-left") {
+                let NewRad = Math.max(obj.x - pos.x, obj.y - pos.y);
+                if (NewRad > 5) {
+                    obj.x = pos.x + NewRad;
+                    obj.y = pos.y + NewRad;
+                    obj.rad = NewRad;
+                }
+            }
+            if (ResizeHandle === "top-right") {
+                let NewRad = Math.max(pos.x - obj.x, obj.y - pos.y);
+                if (NewRad > 5) {
+                    obj.y = pos.y + NewRad;
+                    obj.rad = NewRad;
+                }
+            }
+            if (ResizeHandle === "bottom-left") {
+                let NewRad = Math.max(obj.x - pos.x, pos.y - obj.y);
+                if (NewRad > 5) {
+                    obj.x = pos.x + NewRad;
+                    obj.rad = NewRad;
+                }
+            }
+            render();
+            return;
+        }
+        
+        if (obj.type === TOOLS.rectangle) {
             if (ResizeHandle === "bottom-right") {
                 obj.width = pos.x - obj.x;
                 obj.height = pos.y - obj.y;
@@ -1425,7 +1524,7 @@ canvas.addEventListener("mousemove", function(e) {
             }
         }
  
-        if (obj.type === "Square") {
+        if (obj.type === TOOLS.square) {
             if (ResizeHandle === "top-left") {
                 let size = obj.width + (obj.x - pos.x);
                 obj.x = pos.x;
@@ -1454,14 +1553,9 @@ canvas.addEventListener("mousemove", function(e) {
                 obj.height = size;
             }
         }
+
  
-        if (obj.type === "Circle") {
-            let dx = pos.x - obj.x;
-            let dy = pos.y - obj.y;
-            obj.rad = Math.sqrt(dx * dx + dy * dy);
-        }
- 
-        if (obj.type === "Line") {
+        if (obj.type === TOOLS.line) {
             if (ResizeHandle === "top-left") {
                 obj.x = pos.x;
                 obj.y = pos.y;
@@ -1472,7 +1566,7 @@ canvas.addEventListener("mousemove", function(e) {
             }
         }
  
-        if (obj.type === "Triangle") {
+        if (obj.type === TOOLS.triangle) {
             let left = Math.min(obj.X1, obj.X2, obj.X3);
             let right = Math.max(obj.X1, obj.X2, obj.X3);
             let top = Math.min(obj.Y1, obj.Y2, obj.Y3);
@@ -1558,7 +1652,7 @@ canvas.addEventListener("mousemove", function(e) {
                 obj.Y3 = top + (obj.Y3 - top) * scaleY;
             }
         }   
-        if (obj.type === "Image") {
+        if (obj.type === TOOLS.image) {
             if (ResizeHandle === "bottom-right") {
                 obj.width = pos.x - obj.x;
                 obj.height = pos.y - obj.y;
@@ -1584,7 +1678,7 @@ canvas.addEventListener("mousemove", function(e) {
             }
         }
     
-        if (obj.type === "Text") {
+        if (obj.type === TOOLS.text) {
     
             if (ResizeHandle === "bottom-right") {
                 obj.width = pos.x - obj.x;
@@ -1617,7 +1711,7 @@ canvas.addEventListener("mousemove", function(e) {
     if (Drawing === false) {
         return;
     }
-    if (state.tool==="Brush"){
+    if (state.tool===TOOLS.brush){
         if (Stroke.brush_style==="pen"){
             tool.strokeStyle = Stroke.stroke;
             tool.lineWidth = Stroke.StrokeWidth;
@@ -1669,11 +1763,11 @@ canvas.addEventListener("mousemove", function(e) {
     tool.strokeStyle = state.border;
     tool.lineWidth = state.size;
 
-    if (state.tool === "Rectangle") {
+    if (state.tool === TOOLS.rectangle) {
         tool.fillRect(Shape_X, Shape_Y, pos.x - Shape_X, pos.y - Shape_Y);
         tool.strokeRect(Shape_X, Shape_Y, pos.x - Shape_X, pos.y - Shape_Y);
     }
-    else if (state.tool === "Square") {
+    else if (state.tool === TOOLS.square) {
         let width = pos.x - Shape_X;
         let height = pos.y - Shape_Y;
         let size = Math.min(Math.abs(width), Math.abs(height));
@@ -1682,7 +1776,7 @@ canvas.addEventListener("mousemove", function(e) {
         tool.fillRect(Shape_X, Shape_Y, fw, fh);
         tool.strokeRect(Shape_X, Shape_Y, fw, fh);
     }
-    else if (state.tool === "Circle") {
+    else if (state.tool === TOOLS.circle) {
         let dx = pos.x - Shape_X;
         let dy = pos.y - Shape_Y;
         let radius = Math.sqrt(dx * dx + dy * dy);
@@ -1691,7 +1785,7 @@ canvas.addEventListener("mousemove", function(e) {
         tool.fill();
         tool.stroke();
     }
-    else if (state.tool === "Triangle") {
+    else if (state.tool === TOOLS.triangle) {
         tool.beginPath();
         tool.moveTo(Shape_X, Shape_Y);
         tool.lineTo(pos.x, pos.y);
@@ -1700,7 +1794,7 @@ canvas.addEventListener("mousemove", function(e) {
         tool.fill();
         tool.stroke();
     }
-    else if (state.tool === "Line") {
+    else if (state.tool === TOOLS.line) {
         tool.beginPath();
         tool.moveTo(Shape_X, Shape_Y);
         tool.lineTo(pos.x, pos.y);
@@ -1738,7 +1832,7 @@ canvas.addEventListener("mouseup", function(e) {
         return;
     }
 
-    if (state.tool === "Brush") {
+    if (state.tool === TOOLS.brush) {
         Drawing = false;
         const rect = canvas.getBoundingClientRect();
         state.objects.push(Stroke);
@@ -1747,12 +1841,12 @@ canvas.addEventListener("mouseup", function(e) {
         render();
     }
 
-  if (state.tool === "Rectangle") {
+  if (state.tool === TOOLS.rectangle) {
 
     let item = {};
     count += 1;
     item.id = count;
-    item.type = "Rectangle";
+    item.type = TOOLS.rectangle;
     item.x = Shape_X;
     item.y = Shape_Y;
     item.width = pos.x - Shape_X;
@@ -1769,7 +1863,7 @@ canvas.addEventListener("mouseup", function(e) {
     Drawing = false;
   }
 
-  if (state.tool === "Square") {
+  if (state.tool === TOOLS.square) {
     let width = pos.x - Shape_X;
     let height = pos.y - Shape_Y;
     let p_width = Math.abs(width);
@@ -1781,7 +1875,7 @@ canvas.addEventListener("mouseup", function(e) {
     let item = {};
     count += 1;
     item.id = count;
-    item.type = "Square";
+    item.type =TOOLS.square;
     item.x = Shape_X;
     item.y = Shape_Y;
     item.width = FinalWidth;
@@ -1798,7 +1892,7 @@ canvas.addEventListener("mouseup", function(e) {
     Drawing = false;
   }
 
-  if (state.tool === "Circle") {
+  if (state.tool === TOOLS.circle) {
     let x = pos.x - Shape_X;
     let y = pos.y - Shape_Y;
     let radius = Math.sqrt(x * x + y * y);
@@ -1806,7 +1900,7 @@ canvas.addEventListener("mouseup", function(e) {
     let item = {};
     count += 1;
     item.id = count;
-    item.type = "Circle";
+    item.type = TOOLS.circle;
     item.x = Shape_X;
     item.y = Shape_Y;
     item.rad = radius;
@@ -1814,6 +1908,7 @@ canvas.addEventListener("mouseup", function(e) {
     item.stroke = state.border;
     item.StrokeWidth = state.size;
     item.opacity = state.opacity;
+    item.rotation = 0;
 
     state.objects.push(item);
     Save();
@@ -1821,11 +1916,11 @@ canvas.addEventListener("mouseup", function(e) {
     Drawing = false;
   }
 
-  if (state.tool === "Triangle") {
+  if (state.tool === TOOLS.triangle) {
     let item = {};
     count += 1;
     item.id = count;
-    item.type = "Triangle";
+    item.type = TOOLS.triangle;
     item.X1 = Shape_X;
     item.Y1 = Shape_Y;
     item.X2 = pos.x;
@@ -1844,11 +1939,11 @@ canvas.addEventListener("mouseup", function(e) {
     Drawing = false;
   }
 
-  if (state.tool === "Line") {
+  if (state.tool === TOOLS.line) {
     let item = {};
     count += 1;
     item.id = count;
-    item.type = "Line";
+    item.type = TOOLS.line;
     item.x = Shape_X;
     item.y = Shape_Y;
     item.lastX = pos.x;
@@ -1895,7 +1990,7 @@ if (savedDrawing) {
     let pending = 0;
     for (let i = 0; i < state.objects.length; i++) {
         let item = state.objects[i];
-        if (item.type === "Image" && item.src) {
+        if (item.type === TOOLS.image && item.src) {
             pending++;
             let img = new Image();
             img.crossOrigin = "anonymous";
