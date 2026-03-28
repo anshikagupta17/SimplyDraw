@@ -11,7 +11,7 @@ const TOOLS = {
 const state = {
   tool: null,
   stroke: "#000000",
-  fill: "#000000",
+  fill: "#ffffff",
   border: "#000000",
   size: 5,
   opacity: 1,
@@ -88,6 +88,7 @@ Undo.addEventListener("click", function() {
         return;
     }
     state.history.push(state.objects.pop());
+    state.redoStack=[];
     Save();
     render();
 });
@@ -641,7 +642,6 @@ function render() {
         tool.fillStyle = current.fill;
         tool.strokeStyle = current.stroke;
         tool.lineWidth = current.StrokeWidth;
-        tool.fillRect(-current.width/2, -current.height/2, current.width, current.height);   
         tool.strokeRect(-current.width/2, -current.height/2, current.width, current.height); 
         if (state.selected === current) {
             tool.restore();
@@ -664,7 +664,6 @@ function render() {
       tool.fillStyle = current.fill;
       tool.strokeStyle = current.stroke;
       tool.lineWidth = current.StrokeWidth;
-      tool.fillRect(-current.width/2, -current.height/2, current.width, current.height);
       tool.strokeRect(-current.width/2, -current.height/2, current.width, current.height);
       if (state.selected === current) {
             tool.restore();
@@ -685,7 +684,6 @@ function render() {
         tool.fillStyle = current.fill;
         tool.strokeStyle = current.stroke;
         tool.lineWidth = current.StrokeWidth;
-        tool.fill();
         tool.stroke();
         if (state.selected===current){
             let area = CircleSelector(current);
@@ -711,7 +709,6 @@ function render() {
       tool.fillStyle = current.fill;
       tool.strokeStyle = current.stroke;
       tool.lineWidth = current.StrokeWidth;
-      tool.fill();
       tool.stroke();
       tool.restore();
       tool.globalAlpha = 1;
@@ -1146,13 +1143,13 @@ function getRotationCenter(obj) {
 }
 
 function unrotatePos(pos, obj) {
-    const center = getRotationCenter(obj);
-    const rotation = obj.rotation || 0;
+    let center = getRotationCenter(obj);
+    let rotation = obj.rotation || 0;
     if (!center || rotation === 0) return pos;
-    const dx = pos.x - center.x;
-    const dy = pos.y - center.y;
-    const cos = Math.cos(-rotation);
-    const sin = Math.sin(-rotation);
+    let dx = pos.x - center.x;
+    let dy = pos.y - center.y;
+    let cos = Math.cos(-rotation);
+    let sin = Math.sin(-rotation);
     return {
         x: center.x + dx * cos - dy * sin,
         y: center.y + dx * sin + dy * cos
@@ -1764,7 +1761,6 @@ canvas.addEventListener("mousemove", function(e) {
     tool.lineWidth = state.size;
 
     if (state.tool === TOOLS.rectangle) {
-        tool.fillRect(Shape_X, Shape_Y, pos.x - Shape_X, pos.y - Shape_Y);
         tool.strokeRect(Shape_X, Shape_Y, pos.x - Shape_X, pos.y - Shape_Y);
     }
     else if (state.tool === TOOLS.square) {
@@ -1773,7 +1769,6 @@ canvas.addEventListener("mousemove", function(e) {
         let size = Math.min(Math.abs(width), Math.abs(height));
         let fw = width < 0 ? -size : size;
         let fh = height < 0 ? -size : size;
-        tool.fillRect(Shape_X, Shape_Y, fw, fh);
         tool.strokeRect(Shape_X, Shape_Y, fw, fh);
     }
     else if (state.tool === TOOLS.circle) {
@@ -1782,7 +1777,6 @@ canvas.addEventListener("mousemove", function(e) {
         let radius = Math.sqrt(dx * dx + dy * dy);
         tool.beginPath();
         tool.arc(Shape_X, Shape_Y, radius, 0, Math.PI * 2);
-        tool.fill();
         tool.stroke();
     }
     else if (state.tool === TOOLS.triangle) {
@@ -1791,7 +1785,6 @@ canvas.addEventListener("mousemove", function(e) {
         tool.lineTo(pos.x, pos.y);
         tool.lineTo(Shape_X + (Shape_X - pos.x), pos.y);
         tool.closePath();
-        tool.fill();
         tool.stroke();
     }
     else if (state.tool === TOOLS.line) {
