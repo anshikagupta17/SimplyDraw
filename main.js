@@ -20,7 +20,9 @@ const state = {
   history: [],
   redoStack: [],
   selected: null,
-  brush_style: "pen"
+  brush_style: "pen",
+  empty: true,
+  BorderEmpty: false,
 };
 
 let count = 0;
@@ -179,6 +181,14 @@ function Sidebar(tool) {
         <div class="control">
             <label>Opacity</label>
             <input type="range" id="opacity" min="0" max="1" step="0.1" value="${state.opacity}">
+        </div>
+        <div class="control">
+        <label>Fill Empty</label>
+        <input type="checkbox" id="empty" ${state.empty ? "checked" : ""}>
+        </div>
+        <div class="control">
+        <label>Border Empty</label>
+        <input type = "checkbox" id="BorderEmpty" ${state.BorderEmpty ? "checked" : ""}>
         </div>
         `;
     }
@@ -642,7 +652,12 @@ function render() {
         tool.fillStyle = current.fill;
         tool.strokeStyle = current.stroke;
         tool.lineWidth = current.StrokeWidth;
-        tool.strokeRect(-current.width/2, -current.height/2, current.width, current.height); 
+        if (!current.empty){
+            tool.fillRect(-current.width/2, -current.height/2, current.width, current.height);
+        }
+        if (!current.BorderEmpty){
+            tool.strokeRect(-current.width/2, -current.height/2, current.width, current.height); 
+        }
         if (state.selected === current) {
             tool.restore();
             tool.globalAlpha = 1;
@@ -664,7 +679,12 @@ function render() {
       tool.fillStyle = current.fill;
       tool.strokeStyle = current.stroke;
       tool.lineWidth = current.StrokeWidth;
-      tool.strokeRect(-current.width/2, -current.height/2, current.width, current.height);
+      if (!current.empty){
+            tool.fillRect(-current.width/2, -current.height/2, current.width, current.height);
+      }
+      if (!current.BorderEmpty){
+            tool.strokeRect(-current.width/2, -current.height/2, current.width, current.height); 
+      }
       if (state.selected === current) {
             tool.restore();
             tool.globalAlpha = 1;
@@ -684,7 +704,12 @@ function render() {
         tool.fillStyle = current.fill;
         tool.strokeStyle = current.stroke;
         tool.lineWidth = current.StrokeWidth;
-        tool.stroke();
+        if (!current.empty){
+            tool.fill();
+        }
+        if(!current.BorderEmpty){
+            tool.stroke();
+        }
         if (state.selected===current){
             let area = CircleSelector(current);
             tool.strokeStyle="blue";
@@ -709,7 +734,12 @@ function render() {
       tool.fillStyle = current.fill;
       tool.strokeStyle = current.stroke;
       tool.lineWidth = current.StrokeWidth;
-      tool.stroke();
+      if (!current.empty){
+            tool.fill();
+      }
+      if (!current.BorderEmpty){
+            tool.stroke();
+      }
       tool.restore();
       tool.globalAlpha = 1;
       if (state.selected===current){
@@ -827,6 +857,8 @@ function Sidework() {
     let v_image = document.getElementById("image");
     let v_opacity = document.getElementById("opacity");
     let v_style = document.getElementById("brush_style");
+    let v_empty= document.getElementById("empty");
+    let v_BorderEmpty = document.getElementById("BorderEmpty");
 
     if (v_size) {
         v_size.addEventListener("input", function(e) {
@@ -933,6 +965,26 @@ function Sidework() {
                 Save(); 
             }
         });
+    }
+    if (v_empty) {
+        v_empty.addEventListener("change", function(e){
+            state.empty= e.target.checked;
+            if (state.selected){
+                state.selected.empty=e.target.checked;
+                render();
+                Save();
+            }
+        })
+    }
+    if (v_BorderEmpty) {
+        v_BorderEmpty.addEventListener("change", function(e){
+            state.BorderEmpty= e.target.checked;
+            if (state.selected){
+                state.selected.BorderEmpty=e.target.checked;
+                render();
+                Save();
+            }
+        })
     }
 }
 
@@ -1849,6 +1901,8 @@ canvas.addEventListener("mouseup", function(e) {
     item.StrokeWidth = state.size;
     item.opacity = state.opacity;
     item.rotation = 0;
+    item.empty = state.empty;
+    item.BorderEmpty= state.BorderEmpty;
 
     state.objects.push(item);
     Save();
@@ -1878,6 +1932,8 @@ canvas.addEventListener("mouseup", function(e) {
     item.StrokeWidth = state.size;
     item.opacity = state.opacity;
     item.rotation = 0;
+    item.empty = state.empty;
+    item.BorderEmpty= state.BorderEmpty;
 
     state.objects.push(item);
     Save();
@@ -1902,6 +1958,8 @@ canvas.addEventListener("mouseup", function(e) {
     item.StrokeWidth = state.size;
     item.opacity = state.opacity;
     item.rotation = 0;
+    item.empty = state.empty;
+    item.BorderEmpty= state.BorderEmpty;
 
     state.objects.push(item);
     Save();
@@ -1925,6 +1983,8 @@ canvas.addEventListener("mouseup", function(e) {
     item.StrokeWidth = state.size;
     item.opacity = state.opacity;
     item.rotation = 0;
+    item.empty = state.empty;
+    item.BorderEmpty= state.BorderEmpty;
 
     state.objects.push(item);
     Save();
