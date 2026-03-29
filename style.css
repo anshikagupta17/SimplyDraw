@@ -1,3 +1,6 @@
+html {
+    height: 100%;
+}
 body {
     width: 100%;
     height: 100%;
@@ -7,6 +10,8 @@ body {
     overflow: hidden; 
 }
 body.dark-mode {
+    width: 100%;
+    height: 100%;
     margin: 0; 
     display: flex;
     flex-direction: column;
@@ -84,23 +89,36 @@ button img.dark-mode {
 .Workspace {
     display: flex;
     flex-direction: row;
-    flex-wrap: wrap;
+    flex-wrap: nowrap; 
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
 }
 .Workspace.dark-mode {
     display: flex;
     background-color: black;
     color: white;
+    flex-direction: row;
+    flex-wrap: nowrap; 
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
 }
 
 
 .Canvas {
     flex: 1;
-    min-width: 300px;
+    min-width: 0; 
+    min-height: 0;  
+    overflow: hidden;
 }
 .Canvas.dark-mode {
     flex: 1;
     background-color: black;
     color: white;
+    min-width: 0; 
+    min-height: 0;  
+    overflow: hidden;
 }
 
 #Canvas {
@@ -198,10 +216,15 @@ body.dark-mode .control input[type="range"] {
 }
 
 @media only screen and (max-width: 600px) {
-    .panel {
-        width: 12vw; 
-        height: auto;
+    .panel, .panel.dark-mode {
+        width: 48px;
+        min-width: 48px;
+        height: auto;          
+        max-height: 90vh;      
+        overflow-y: auto;  
         font-size: 0.7rem;
+        margin: 0.4rem;
+        padding: 0.4rem;
     }
     .tools {
         gap: 0.3rem;
@@ -210,8 +233,5 @@ body.dark-mode .control input[type="range"] {
     button img {
         width: 18px;
         height: 18px;
-    }
-    .Canvas {
-        min-height: 400px;
     }
 }

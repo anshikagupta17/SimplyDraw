@@ -53,6 +53,7 @@ window.addEventListener("resize", function() {
     if (document.querySelector(".textbox")) return;
     resizeCanvas();
 });
+resizeCanvas();
 
 // Bin
 
@@ -997,7 +998,7 @@ canvas.addEventListener("pointerdown", function(e) {
     canvas.setPointerCapture(e.pointerId);
 
     const pos= Uniform_pos(e, canvas);
-    if (state.tool === "Select" && state.selected) {
+    if (state.tool === TOOLS.select && state.selected) {
 
         let area = GetSelectionArea(state.selected);
 
