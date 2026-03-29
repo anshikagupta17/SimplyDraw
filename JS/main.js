@@ -1,29 +1,24 @@
-const TOOLS = {
-  rectangle: "Rectangle",
-  square: "Square",
-  circle: "Circle",
-  triangle: "Triangle",
-  line: "Line",
-  brush: "Brush",
-  text: "Text",
-  image: "Image"
-};
-const state = {
-  tool: null,
-  stroke: "#000000",
-  fill: "#ffffff",
-  border: "#000000",
-  size: 5,
-  opacity: 1,
-  image: null,
-  objects: [],
-  history: [],
-  redoStack: [],
-  selected: null,
-  brush_style: "pen",
-  empty: true,
-  BorderEmpty: false,
-};
+import { state, TOOLS } from "./state.js";
+
+import {
+    Uniform_pos,
+    add_to_history,
+    current_drawing,
+    restore_drawing,
+    BrushSelection,
+    BrushDetector,
+    RectangleSelection,
+    SquareSelector,
+    CircleSelector,
+    TriangleSelector,
+    LineSelector,
+    ActualCircleDetection,
+    TriangleDetector,
+    LineDetector,
+    GetSelectionArea,
+    DetectObject,
+    ObjectClick
+} from "./helpers.js";
 
 let count = 0;
 
@@ -54,18 +49,10 @@ function resizeCanvas() {
     render();
 }
 
-function Uniform_pos(e) {
-    const rect = canvas.getBoundingClientRect();
-    const scale_X = canvas.width / rect.width;
-    const scale_Y = canvas.height / rect.height;
-    return {
-        x: (e.clientX - rect.left) * scale_X,
-        y: (e.clientY - rect.top) * scale_Y
-    };
-}
-
-window.addEventListener("resize", resizeCanvas);
-resizeCanvas();
+window.addEventListener("resize", function() {
+    if (document.querySelector(".textbox")) return;
+    resizeCanvas();
+});
 
 // Bin
 
@@ -74,7 +61,7 @@ ClearScreen.addEventListener("click", function() {
     if (state.objects.length===0){
         return;
     }
-    state.redoStack.push([...state.objects]);
+    add_to_history(state);
     state.objects = [];
     tool.clearRect(0, 0, canvas.width, canvas.height);
     localStorage.removeItem("drawing");
@@ -86,23 +73,27 @@ ClearScreen.addEventListener("click", function() {
 
 let Undo = document.getElementById("Undo");
 Undo.addEventListener("click", function() {
-    if (state.objects.length === 0) {
+    if (state.history.length === 0) {
         return;
     }
-    state.history.push(state.objects.pop());
-    state.redoStack=[];
+    state.redoStack.push(current_drawing(state));
+    let snapshot = state.history.pop();
+    restore_drawing(state, snapshot, render)
     Save();
     render();
 });
 
-function Undo_Z(){
-    if (state.objects.length === 0) {
+function Undo_Z() {
+    if (state.history.length === 0) {
         return;
     }
-    state.history.push(state.objects.pop());
+    state.redoStack.push(current_drawing(state));
+    let snapshot = state.history.pop();
+    restore_drawing(state, snapshot, render);
     Save();
     render();
 }
+
 document.addEventListener("keydown",function(e){
     let command= e.ctrlKey || e.metaKey;
     if (command && e.key==="z"){
@@ -115,17 +106,12 @@ document.addEventListener("keydown",function(e){
 
 let Redo = document.getElementById("Redo");
 Redo.addEventListener("click", function() {
-
-    if (state.redoStack.length > 0) {
-        state.objects = state.redoStack.pop();
-        Save();
-        render();
+    if (state.redoStack.length === 0) {
         return;
     }
-    if (state.history.length === 0) {
-        return;
-    }
-    state.objects.push(state.history.pop());
+    state.history.push(current_drawing(state));
+    let snapshot = state.redoStack.pop();
+    restore_drawing(state, snapshot, render);
     Save();
     render();
 });
@@ -137,12 +123,14 @@ let ImageButton= document.getElementById("Image");
 ImageButton.addEventListener("click",function(e){
     Insert_Image();
 });
+
 function Insert_Image(){
     let seed = Math.floor(Math.random() * 1000);
     let url = "https://picsum.photos/seed/" + seed + "/300/200";
     let img = new Image();
     img.crossOrigin = "anonymous";
     img.onload = function(){
+        add_to_history(state);
         let item = {};
         count+=1;
         item.id = count;
@@ -183,12 +171,14 @@ function Sidebar(tool) {
             <input type="range" id="opacity" min="0" max="1" step="0.1" value="${state.opacity}">
         </div>
         <div class="control">
-        <label>Fill Empty</label>
-        <input type="checkbox" id="empty" ${state.empty ? "checked" : ""}>
+            <label class="toggle">Fill Empty</label>
+            <input type="checkbox" id="empty" ${state.empty ? "checked" : ""}>
+            <span class="switch"></span>
         </div>
         <div class="control">
-        <label>Border Empty</label>
-        <input type = "checkbox" id="BorderEmpty" ${state.BorderEmpty ? "checked" : ""}>
+            <label class="toggle">Border Empty</label>
+            <input type = "checkbox" id="BorderEmpty" ${state.BorderEmpty ? "checked" : ""}>
+            <span class="switch"></span>
         </div>
         `;
     }
@@ -257,280 +247,21 @@ function Sidebar(tool) {
 }
 
 function Clicked(event) {
-  let ClickedButton = event.currentTarget;
-  state.selected=null
-  render();
+    let ClickedButton = event.currentTarget;
+    state.selected=null
+    render();
 
-  state.tool = ClickedButton.id;
+    state.tool = ClickedButton.id;
 
-  for (let i = 0; i < buttons.length; i++) {
-    buttons[i].classList.remove("active");
-  }
-  ClickedButton.classList.add("active");
-  Sidebar(state.tool);
+    for (let i = 0; i < buttons.length; i++) {
+        buttons[i].classList.remove("active");
+    }
+    ClickedButton.classList.add("active");
+    Sidebar(state.tool);
 }
 
 for (let i = 0; i < buttons.length; i++) {
-  buttons[i].addEventListener("click", Clicked);
-}
-
-// brush selection
-
-function BrushSelection(brush){
-    let minX= brush.points[0].x;
-    let minY= brush.points[0].y;
-    let maxX= brush.points[0].x;
-    let maxY= brush.points[0].y;
-
-    for (let i=0; i<brush.points.length; i++){
-        let p= brush.points[i];
-
-        if (p.x < minX) {
-            minX=p.x;
-        }
-        if (p.x > maxX) {
-            maxX= p.x;
-        }
-        if (p.y <minY){
-            minY=p.y;
-        }
-        if (p.y > maxY) {
-            maxY= p.y;
-        }
-    }
-    let space= brush.StrokeWidth/2;
-    return {
-        x: minX - space,
-        y: minY - space,
-        width: maxX - minX + space * 2,
-        height: maxY - minY + space * 2
-    };
-}
-function BrushDetector(brush, x,y){
-    let radius= brush.StrokeWidth/2 +4;
-    let p=brush.points;
-    if (p.length === 1) {
-        let dx = x - p[0].x;
-        let dy = y - p[0].y;
-        return (dx * dx + dy * dy) <= radius * radius;
-    }
-
-    for (let i = 0; i < p.length - 1; i++) {
-        let p1 = p[i];
-        let p2 = p[i + 1];
-
-        let dx = p2.x - p1.x;
-        let dy = p2.y - p1.y;
-
-        let length = dx * dx + dy * dy;
-
-        let k = 0;
-        if (length !== 0) {
-            k = ((x - p1.x) * dx + (y - p1.y) * dy) / length;
-        }
-
-        if (k < 0) {
-            k = 0;
-        }
-        if (k > 1) {
-            k = 1;
-        }
-
-        let closest_x = p1.x + k * dx;
-        let closest_y = p1.y + k * dy;
-
-        let dist_x = x - closest_x;
-        let dist_y = y - closest_y;
-
-        let distance = dist_x * dist_x + dist_y * dist_y;
-
-        if (distance <= radius * radius) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-//rectangle selection
-
-function RectangleSelection(rectangle){
-    let minX, minY, maxX, maxY;
-    if (rectangle.width >= 0) {
-        minX = rectangle.x;
-        maxX = rectangle.x + rectangle.width;
-    } 
-    else {
-        minX = rectangle.x + rectangle.width;
-        maxX = rectangle.x;
-    }
-    if (rectangle.height >= 0) {
-        minY = rectangle.y;
-        maxY = rectangle.y + rectangle.height;
-    } 
-    else {
-        minY = rectangle.y + rectangle.height;
-        maxY = rectangle.y;
-    }
-
-    let space= rectangle.StrokeWidth/2;
-    return {
-        x: (minX - space),
-        y: (minY - space),
-        width: maxX - minX + space * 2,
-        height: maxY - minY + space * 2
-    };
-}
-// Square selection
-
-function SquareSelector(square){
-    let minX, minY, maxX, maxY;
-    if (square.width >= 0) {
-        minX = square.x;
-        maxX = square.x + square.width;
-    } 
-    else {
-        minX = square.x + square.width;
-        maxX = square.x;
-    }
-    if (square.height >= 0) {
-        minY = square.y;
-        maxY = square.y + square.height;
-    } 
-    else {
-        minY = square.y + square.height;
-        maxY = square.y;
-    }
-
-    let space= square.StrokeWidth/2;
-    return {
-        x: (minX - space),
-        y: (minY - space),
-        width: maxX - minX + space * 2,
-        height: maxY - minY + space * 2
-    };
-}
-
-//Circle selection
-
-function CircleSelector(circle){
-    let space= circle.StrokeWidth/2;
-
-    return {
-        x: circle.x - circle.rad - space,
-        y: circle.y - circle.rad -space,
-        width:(circle.rad*2) + space * 2,
-        height:(circle.rad*2) + space * 2
-    };
-}
-
-function ActualCircleDetection(circle, x, y){
-    let dx = x - circle.x;
-    let dy = y - circle.y;
-    return ((dx * dx + dy * dy) <= (circle.rad * circle.rad));
-}
-// Triangle selection
-
-function TriangleSelector(triangle){
-    let minX = Math.min(triangle.X1, triangle.X2, triangle.X3);
-    let maxX = Math.max(triangle.X1, triangle.X2, triangle.X3);
-    let minY = Math.min(triangle.Y1, triangle.Y2, triangle.Y3);
-    let maxY = Math.max(triangle.Y1, triangle.Y2, triangle.Y3);
-
-    let space = triangle.StrokeWidth / 2;
-
-    return {
-        x: minX - space,
-        y: minY - space,
-        width: (maxX - minX) + space * 2,
-        height: (maxY - minY) + space * 2
-    };
-}
-
-function TriangleDetector(triangle,x,y){
-    let x1 = triangle.X1;
-    let y1 = triangle.Y1;
-    let x2 = triangle.X2;
-    let y2 = triangle.Y2;
-    let x3 = triangle.X3;
-    let y3 = triangle.Y3;
-
-    let ABC = (y2 - y3)*(x1 - x3) + (x3 - x2)*(y1 - y3);
-
-    if (ABC === 0) {
-        return false;
-    }
-
-    let a = ((y2 - y3)*(x - x3) + (x3 - x2)*(y - y3)) / ABC;
-    let b = ((y3 - y1)*(x - x3) + (x1 - x3)*(y - y3)) / ABC;
-    let c = 1 - a - b;
-
-    return (a >= 0 && b >= 0 && c >= 0);
-}
-
-//Line selection
-
-function LineSelector(line){
-    let minX, minY, maxX, maxY;
-    if (line.x>=line.lastX) {
-        minX = line.lastX;
-        maxX = line.x;
-    } 
-    else {
-        minX = line.x;
-        maxX = line.lastX;
-    }
-    if (line.y>=line.lastY) {
-        minY = line.lastY;
-        maxY = line.y;
-    } 
-    else {
-        minY = line.y;
-        maxY = line.lastY;
-    }
-    let space = line.StrokeWidth / 2;
-
-    return {
-        x: minX - space,
-        y: minY - space,
-        width: (maxX - minX) + space * 2,
-        height: (maxY - minY) + space * 2
-    };
-}
-function LineDetector(line,x,y){
-    let x1 = line.x;
-    let y1 = line.y;
-    let x2 = line.lastX;
-    let y2 = line.lastY;
-    let dx=x2-x1;
-    let dy=y2-y1;
-    let length=dx*dx+ dy * dy;
-    if (length===0){
-        return false;
-    }
-    let k = ((x-x1)*dx + (y-y1)*dy)/length;
-    if (k < 0) {
-            k = 0;
-        }
-        if (k > 1) {
-            k = 1;
-        }
-
-        let closest_x = x1 + k * dx;
-        let closest_y = y1 + k * dy;
-
-        let dist_x = x - closest_x;
-        let dist_y = y - closest_y;
-
-        let distance = dist_x * dist_x + dist_y * dist_y;
-        let radius = line.StrokeWidth / 2 + 4;
-        if (distance <= radius * radius) {
-            return true;
-        }
-        else {
-            return false;
-        }
-
+    buttons[i].addEventListener("click", Clicked);
 }
 
 function DrawRotatedBox(current) {
@@ -562,293 +293,302 @@ function DrawRotatedBox(current) {
     tool.restore();
 }
 
-function ObjectClick(area,x,y){
-    let horizontal=false;
-    let vertical= false;
-    if (x>= area.x && x<= area.x+area.width){
-        horizontal=true;
-    }
-    if(y>= area.y && y<= area.y+area.height){
-        vertical=true;
-    }
-    if (horizontal&& vertical){
-        return true;
-    }
-    else {
-        return false;
-    }
-
-}
 
 function render() {
-  tool.clearRect(0, 0, canvas.width, canvas.height);
+    tool.clearRect(0, 0, canvas.width, canvas.height);
 
-  for (let i = 0; i < state.objects.length; i++) {
-    let current = state.objects[i];
+    for (let i = 0; i < state.objects.length; i++) {
+        let current = state.objects[i];
 
-    // brush
-    if (current.type === TOOLS.brush) {
-        tool.globalAlpha = current.opacity !== undefined ? current.opacity : 1;
-        let points = current.points;
-        let style = current.brush_style || "pen";
+        // brush
+        if (current.type === TOOLS.brush) {
+            tool.globalAlpha = current.opacity !== undefined ? current.opacity : 1;
+            let points = current.points;
+            let style = current.brush_style || "pen";
 
-        if (style === "pen") {
-            tool.strokeStyle = current.stroke;
-            tool.lineWidth = current.StrokeWidth;
-            tool.lineCap = "round";
-            tool.lineJoin = "round";
-            if (points.length > 0) {
-                tool.beginPath();
-                tool.moveTo(points[0].x, points[0].y);
-                for (let i = 1; i < points.length; i++) {
-                    tool.lineTo(points[i].x, points[i].y);
+            if (style === "pen") {
+                tool.strokeStyle = current.stroke;
+                tool.lineWidth = current.StrokeWidth;
+                tool.lineCap = "round";
+                tool.lineJoin = "round";
+                if (points.length > 0) {
+                    tool.beginPath();
+                    tool.moveTo(points[0].x, points[0].y);
+                    for (let i = 1; i < points.length; i++) {
+                        tool.lineTo(points[i].x, points[i].y);
+                    }
+                    tool.stroke();
                 }
-                tool.stroke();
-            }
-        } 
-        else if (style === "spray") {
-            tool.fillStyle = current.stroke;
-            for (let i = 0; i < points.length; i++) {
-                tool.beginPath();
-                tool.arc(points[i].x, points[i].y, 1, 0, Math.PI * 2);
-                tool.fill();
-            }
-        } 
-        else if (style === "dashed") {
-            tool.strokeStyle = current.stroke;
-            tool.lineWidth = current.StrokeWidth;
-            tool.lineCap = "round";
-            let dash = current.StrokeWidth * 2;
-            let gap = current.StrokeWidth * 1.5;
-            tool.setLineDash([dash, gap]);
-            if (points.length > 0) {
-                tool.beginPath();
-                tool.moveTo(points[0].x, points[0].y);
-                for (let i = 1; i < points.length; i++) {
-                    tool.lineTo(points[i].x, points[i].y);
+                
+                
+            } 
+            else if (style === "spray") {
+                tool.fillStyle = current.stroke;
+                for (let i = 0; i < points.length; i++) {
+                    tool.beginPath();
+                    tool.arc(points[i].x, points[i].y, 1, 0, Math.PI * 2);
+                    tool.fill();
                 }
-                tool.stroke();
+                
+            } 
+            else if (style === "dashed") {
+                tool.strokeStyle = current.stroke;
+                tool.lineWidth = current.StrokeWidth;
+                tool.lineCap = "round";
+                let dash = current.StrokeWidth * 2;
+                let gap = current.StrokeWidth * 1.5;
+                tool.setLineDash([dash, gap]);
+                if (points.length > 0) {
+                    tool.beginPath();
+                    tool.moveTo(points[0].x, points[0].y);
+                    for (let i = 1; i < points.length; i++) {
+                        tool.lineTo(points[i].x, points[i].y);
+                    }
+                    tool.stroke();
+                }
+            
+                tool.setLineDash([]);
             }
-            tool.setLineDash([]);
-        }
 
-    if (state.selected === current) {
-        let area = BrushSelection(current);
-        tool.strokeStyle = "blue";
-        tool.lineWidth = 1;
-        tool.strokeRect(area.x, area.y, area.width, area.height);
-    }
-    tool.globalAlpha = 1;
-}
-
-    // shapes
-    if (current.type === TOOLS.rectangle) {
-        tool.globalAlpha = current.opacity !== undefined ? current.opacity : 1;
-        tool.save();
-        let cx = current.x + current.width / 2;
-        let cy = current.y + current.height / 2;
-        tool.translate(cx, cy);
-        tool.rotate(current.rotation || 0);
-        tool.fillStyle = current.fill;
-        tool.strokeStyle = current.stroke;
-        tool.lineWidth = current.StrokeWidth;
-        if (!current.empty){
-            tool.fillRect(-current.width/2, -current.height/2, current.width, current.height);
-        }
-        if (!current.BorderEmpty){
-            tool.strokeRect(-current.width/2, -current.height/2, current.width, current.height); 
-        }
         if (state.selected === current) {
-            tool.restore();
-            tool.globalAlpha = 1;
-            DrawRotatedBox(current);
-        }
-        else {
-            tool.restore();
-            tool.globalAlpha = 1;
-        }
-    }
-
-    if (current.type === TOOLS.square) {
-      tool.globalAlpha = current.opacity !== undefined ? current.opacity : 1;
-      tool.save();
-      let cx = current.x + current.width / 2;
-      let cy = current.y + current.height / 2;
-      tool.translate(cx, cy);
-      tool.rotate(current.rotation || 0);
-      tool.fillStyle = current.fill;
-      tool.strokeStyle = current.stroke;
-      tool.lineWidth = current.StrokeWidth;
-      if (!current.empty){
-            tool.fillRect(-current.width/2, -current.height/2, current.width, current.height);
-      }
-      if (!current.BorderEmpty){
-            tool.strokeRect(-current.width/2, -current.height/2, current.width, current.height); 
-      }
-      if (state.selected === current) {
-            tool.restore();
-            tool.globalAlpha = 1;
-            DrawRotatedBox(current);
-      }
-      else {
-        tool.restore();
-        tool.globalAlpha = 1;
-      }
-    }
- 
-    if (current.type === TOOLS.circle) {
-        tool.save();
-        tool.globalAlpha = current.opacity !== undefined ? current.opacity : 1;
-        tool.beginPath();
-        tool.arc(current.x, current.y, current.rad, 0, Math.PI * 2);
-        tool.fillStyle = current.fill;
-        tool.strokeStyle = current.stroke;
-        tool.lineWidth = current.StrokeWidth;
-        if (!current.empty){
-            tool.fill();
-        }
-        if(!current.BorderEmpty){
-            tool.stroke();
-        }
-        if (state.selected===current){
-            let area = CircleSelector(current);
-            tool.strokeStyle="blue";
-            tool.lineWidth=2;
-            tool.strokeRect(area.x, area.y, area.width, area.height);
-            ResizingShapes(area);
-            ResizeRotateHandle(area);
-        }
-    }
-    if (current.type === TOOLS.triangle) {
-      tool.globalAlpha = current.opacity !== undefined ? current.opacity : 1;
-      tool.save();
-      let tcx = (current.X1 + current.X2 + current.X3) / 3;
-      let tcy = (current.Y1 + current.Y2 + current.Y3) / 3;
-      tool.translate(tcx, tcy);
-      tool.rotate(current.rotation || 0);
-      tool.beginPath();
-      tool.moveTo(current.X1 - tcx, current.Y1 - tcy);
-      tool.lineTo(current.X2 - tcx, current.Y2 - tcy);
-      tool.lineTo(current.X3 - tcx, current.Y3 - tcy);
-      tool.closePath();
-      tool.fillStyle = current.fill;
-      tool.strokeStyle = current.stroke;
-      tool.lineWidth = current.StrokeWidth;
-      if (!current.empty){
-            tool.fill();
-      }
-      if (!current.BorderEmpty){
-            tool.stroke();
-      }
-      tool.restore();
-      tool.globalAlpha = 1;
-      if (state.selected===current){
-        let area = TriangleSelector(current);
-        tool.strokeStyle="blue";
-        tool.lineWidth=3;
-        tool.save();
-        let tcx = (current.X1 + current.X2 + current.X3) / 3;
-        let tcy = (current.Y1 + current.Y2 + current.Y3) / 3;
-        tool.translate(tcx, tcy);
-        tool.rotate(current.rotation || 0);
-        tool.beginPath();
-        tool.moveTo(current.X1 - tcx, current.Y1 - tcy);
-        tool.lineTo(current.X2 - tcx, current.Y2 - tcy);
-        tool.lineTo(current.X3 - tcx, current.Y3 - tcy);
-        tool.closePath();
-        tool.stroke();
-        tool.restore();
-        ResizingShapes(area)
-        ResizeRotateHandle(area)
-      }
-    }
- 
-    if (current.type === TOOLS.line) {
-        tool.globalAlpha = current.opacity !== undefined ? current.opacity : 1;
-
-        tool.save();
-
-        let cx = (current.x + current.lastX) / 2;
-        let cy = (current.y + current.lastY) / 2;
-
-        tool.translate(cx, cy);
-        tool.rotate(current.rotation || 0);
-
-        let dx = current.lastX - current.x;
-        let dy = current.lastY - current.y;
-
-        tool.beginPath();
-        tool.moveTo(-dx/2, -dy/2);
-        tool.lineTo(dx/2, dy/2);
-        tool.strokeStyle = current.stroke;
-        tool.lineWidth = current.StrokeWidth;
-        tool.stroke();
-
-        tool.restore();
-        tool.globalAlpha = 1;
-        if (state.selected === current) {
+            let area = BrushSelection(current);
             tool.strokeStyle = "blue";
-            tool.lineWidth = 2;
+            tool.lineWidth = 1;
+            tool.strokeRect(area.x, area.y, area.width, area.height);
+        }
+        tool.globalAlpha = 1;
+    }
+
+        // shapes
+        if (current.type === TOOLS.rectangle) {
+            tool.globalAlpha = current.opacity !== undefined ? current.opacity : 1;
             tool.save();
+            let cx = current.x + current.width / 2;
+            let cy = current.y + current.height / 2;
             tool.translate(cx, cy);
             tool.rotate(current.rotation || 0);
-            let localArea = {
-                x: -Math.abs(dx)/2, y: -Math.abs(dy)/2,
-                width: Math.abs(dx),  height: Math.abs(dy)
-            };
-            tool.strokeRect(localArea.x, localArea.y, localArea.width, localArea.height);
-            ResizingShapes(localArea);    
-            ResizeRotateHandle(localArea); 
+            tool.fillStyle = current.fill;
+            tool.strokeStyle = current.stroke;
+            tool.lineWidth = current.StrokeWidth;
+            if (!current.empty){
+                tool.fillRect(-current.width/2, -current.height/2, current.width, current.height);
+            }
+            if (!current.BorderEmpty){
+                tool.strokeRect(-current.width/2, -current.height/2, current.width, current.height); 
+            }
+            if (state.selected === current) {
+                tool.restore();
+                tool.globalAlpha = 1;
+                DrawRotatedBox(current);
+            }
+            else {
+                tool.restore();
+                tool.globalAlpha = 1;
+            }
+            
+        }
+
+        if (current.type === TOOLS.square) {
+            tool.globalAlpha = current.opacity !== undefined ? current.opacity : 1;
+            tool.save();
+            let cx = current.x + current.width / 2;
+            let cy = current.y + current.height / 2;
+            tool.translate(cx, cy);
+            tool.rotate(current.rotation || 0);
+            tool.fillStyle = current.fill;
+            tool.strokeStyle = current.stroke;
+            tool.lineWidth = current.StrokeWidth;
+            if (!current.empty){
+                    tool.fillRect(-current.width/2, -current.height/2, current.width, current.height);
+            }
+            if (!current.BorderEmpty){
+                    tool.strokeRect(-current.width/2, -current.height/2, current.width, current.height); 
+            }
+            if (state.selected === current) {
+                    tool.restore();
+                    tool.globalAlpha = 1;
+                    DrawRotatedBox(current);
+            }
+            else {
+                tool.restore();
+                tool.globalAlpha = 1;
+            }
+            
+        }
+    
+        if (current.type === TOOLS.circle) {
+            tool.save();
+            tool.globalAlpha = current.opacity !== undefined ? current.opacity : 1;
+            tool.beginPath();
+            tool.arc(current.x, current.y, current.rad, 0, Math.PI * 2);
+            tool.fillStyle = current.fill;
+            tool.strokeStyle = current.stroke;
+            tool.lineWidth = current.StrokeWidth;
+            if (!current.empty){
+                tool.fill();
+            }
+            if(!current.BorderEmpty){
+                tool.stroke();
+            }
+            if (state.selected===current){
+                let area = CircleSelector(current);
+                tool.strokeStyle="blue";
+                tool.lineWidth=2;
+                tool.strokeRect(area.x, area.y, area.width, area.height);
+                ResizingShapes(area);
+            }
+            
+            
+        }
+        if (current.type === TOOLS.triangle) {
+            tool.globalAlpha = current.opacity !== undefined ? current.opacity : 1;
+            tool.save();
+            let tcx = (current.X1 + current.X2 + current.X3) / 3;
+            let tcy = (current.Y1 + current.Y2 + current.Y3) / 3;
+            tool.translate(tcx, tcy);
+            tool.rotate(current.rotation || 0);
+            tool.beginPath();
+            tool.moveTo(current.X1 - tcx, current.Y1 - tcy);
+            tool.lineTo(current.X2 - tcx, current.Y2 - tcy);
+            tool.lineTo(current.X3 - tcx, current.Y3 - tcy);
+            tool.closePath();
+            tool.fillStyle = current.fill;
+            tool.strokeStyle = current.stroke;
+            tool.lineWidth = current.StrokeWidth;
+            if (!current.empty){
+                    tool.fill();
+            }
+            if (!current.BorderEmpty){
+                    tool.stroke();
+            }
             tool.restore();
+            tool.globalAlpha = 1;
+            if (state.selected===current){
+                let area = TriangleSelector(current);
+                tool.strokeStyle="blue";
+                tool.lineWidth=3;
+                tool.save();
+                let tcx = (current.X1 + current.X2 + current.X3) / 3;
+                let tcy = (current.Y1 + current.Y2 + current.Y3) / 3;
+                tool.translate(tcx, tcy);
+                tool.rotate(current.rotation || 0);
+                tool.beginPath();
+                tool.moveTo(current.X1 - tcx, current.Y1 - tcy);
+                tool.lineTo(current.X2 - tcx, current.Y2 - tcy);
+                tool.lineTo(current.X3 - tcx, current.Y3 - tcy);
+                tool.closePath();
+                tool.stroke();
+                tool.restore();
+                ResizingShapes(area)
+                ResizeRotateHandle(area)
+            }
+            
         }
-    }
- 
-    // image
- 
-    if (current.type === TOOLS.image && current.img && current.img.complete) {
-    tool.save();
-    let icx = current.x + current.width / 2;
-    let icy = current.y + current.height / 2;
-    tool.translate(icx, icy);
-    tool.rotate(current.rotation || 0);
-    tool.drawImage(current.img, -current.width/2, -current.height/2, current.width, current.height);
-    tool.restore();
-    if (state.selected === current) {
-        let area = {
-            x: current.x,
-            y: current.y,
-            width: current.width,
-            height: current.height
-        };
-        tool.strokeStyle = "blue";
-        tool.lineWidth = 2;
-        tool.strokeRect(area.x, area.y, area.width, area.height);
-        DrawRotatedBox(current);
-    }
-    }
- 
-    // text
- 
-    if (current.type === TOOLS.text) {
-        tool.globalAlpha = current.opacity !== undefined ? current.opacity : 1;
-        tool.fillStyle = current.fill;
-        let fontSize = current.fontSize || 20;
-        let fontFamily = current.fontFamily || "Arial";
-        tool.font = fontSize + "px " + fontFamily;
-        tool.textBaseline = "top";
-        let lines = current.text.split("\n");
-        for (let j = 0; j < lines.length; j++) {
-            tool.fillText(lines[j], current.x, current.y + j * fontSize);
+    
+        if (current.type === TOOLS.line) {
+            tool.globalAlpha = current.opacity !== undefined ? current.opacity : 1;
+
+            tool.save();
+
+            let cx = (current.x + current.lastX) / 2;
+            let cy = (current.y + current.lastY) / 2;
+
+            tool.translate(cx, cy);
+            tool.rotate(current.rotation || 0);
+
+            let dx = current.lastX - current.x;
+            let dy = current.lastY - current.y;
+
+            tool.beginPath();
+            tool.moveTo(-dx/2, -dy/2);
+            tool.lineTo(dx/2, dy/2);
+            tool.strokeStyle = current.stroke;
+            tool.lineWidth = current.StrokeWidth;
+            tool.stroke();
+
+            tool.restore();
+            tool.globalAlpha = 1;
+            if (state.selected === current) {
+                tool.strokeStyle = "blue";
+                tool.lineWidth = 2;
+                tool.save();
+                tool.translate(cx, cy);
+                tool.rotate(current.rotation || 0);
+                let localArea = {
+                    x: -Math.abs(dx)/2, y: -Math.abs(dy)/2,
+                    width: Math.abs(dx),  height: Math.abs(dy)
+                };
+                tool.strokeRect(localArea.x, localArea.y, localArea.width, localArea.height);
+                ResizingShapes(localArea);    
+                ResizeRotateHandle(localArea); 
+                tool.restore();
+            }
+            
         }
-        tool.globalAlpha = 1;
-        if (state.selected === current) {
-            tool.strokeStyle = "blue";
-            tool.lineWidth = 3;
-            tool.strokeRect(current.x, current.y, current.width, current.height);
+    
+        // image
+    
+        if (current.type === TOOLS.image && current.img && current.img.complete) {
+            tool.save();
+            let icx = current.x + current.width / 2;
+            let icy = current.y + current.height / 2;
+            tool.translate(icx, icy);
+            tool.rotate(current.rotation || 0);
+            tool.drawImage(current.img, -current.width/2, -current.height/2, current.width, current.height);
+            tool.restore();
+            if (state.selected === current) {
+                let area = {
+                    x: current.x,
+                    y: current.y,
+                    width: current.width,
+                    height: current.height
+                };
+                tool.strokeStyle = "blue";
+                tool.lineWidth = 2;
+                tool.strokeRect(area.x, area.y, area.width, area.height);
+                DrawRotatedBox(current);
+            }
+            
         }
-    }
+    
+        // text
+    
+        if (current.type === TOOLS.text) {
+            tool.globalAlpha = current.opacity !== undefined ? current.opacity : 1;
+            tool.fillStyle = current.fill;
+            let fontSize = current.fontSize || 20;
+            let fontFamily = current.fontFamily || "Arial";
+            tool.font = fontSize + "px " + fontFamily;
+            tool.textBaseline = "top";
+            let lines = current.text.split("\n");
+            for (let j = 0; j < lines.length; j++) {
+                tool.fillText(lines[j], current.x, current.y + j * fontSize);
+            }
+            tool.globalAlpha = 1;
+            if (state.selected === current) {
+                tool.strokeStyle = "blue";
+                tool.lineWidth = 3;
+                tool.strokeRect(current.x, current.y, current.width, current.height);
+            }
+        }
+        
     }
 }
+
+let editing = false;
+
+function startEdit() {
+    if (!editing && state.selected) {
+        add_to_history(state);
+        editing = true;
+    }
+}
+
+function endEdit() {
+    editing = false;
+    Save();
+}
+
 function Sidework() {
     let v_size = document.getElementById("size");
     let v_fill = document.getElementById("fill");
@@ -859,6 +599,29 @@ function Sidework() {
     let v_style = document.getElementById("brush_style");
     let v_empty= document.getElementById("empty");
     let v_BorderEmpty = document.getElementById("BorderEmpty");
+
+    function startChange() {
+        if (state.selected) add_to_history(state);
+    }
+
+    if (v_size){
+        v_size.addEventListener("pointerdown", startChange);
+    }
+    if (v_fill){
+        v_fill.addEventListener("pointerdown", startChange);
+    }
+    if (v_color){
+        v_color.addEventListener("pointerdown", startChange);
+    }
+    if (v_border){
+        v_border.addEventListener("pointerdown", startChange);
+    }
+    if (v_opacity) {
+        v_opacity.addEventListener("pointerdown", startChange);
+    }
+    if (v_style){
+        v_style.addEventListener("pointerdown", startChange);
+    }
 
     if (v_size) {
         v_size.addEventListener("input", function(e) {
@@ -872,8 +635,7 @@ function Sidework() {
                 }
                 render(); 
                 Save();
-        }
-
+            }
         });
     }
 
@@ -882,7 +644,7 @@ function Sidework() {
             state.fill = e.target.value;
             if (state.selected) {
                 if (state.selected.type === TOOLS.line || state.selected.type === TOOLS.brush){
-                state.selected.stroke = e.target.value;
+                    state.selected.stroke = e.target.value;
                 }
                 else{
                     state.selected.fill = e.target.value;
@@ -912,7 +674,6 @@ function Sidework() {
                 render(); 
                 Save(); 
             }
-
         });
     }
 
@@ -938,6 +699,7 @@ function Sidework() {
                     item.height = img.height;
                     item.src = event.target.result;
                     item.img = img;
+                    add_to_history(state);
                     state.objects.push(item);
                     Save();
                     render();
@@ -946,6 +708,7 @@ function Sidework() {
             reader.readAsDataURL(upload);
         });
     }
+
     if (v_opacity){
         v_opacity.addEventListener("input", function(e){
             state.opacity= parseFloat(e.target.value);
@@ -956,6 +719,7 @@ function Sidework() {
             }
         });
     }
+
     if (v_style) {
         v_style.addEventListener("change", function(e){
             state.brush_style = e.target.value;
@@ -966,6 +730,7 @@ function Sidework() {
             }
         });
     }
+
     if (v_empty) {
         v_empty.addEventListener("change", function(e){
             state.empty= e.target.checked;
@@ -976,6 +741,7 @@ function Sidework() {
             }
         })
     }
+
     if (v_BorderEmpty) {
         v_BorderEmpty.addEventListener("change", function(e){
             state.BorderEmpty= e.target.checked;
@@ -1064,8 +830,8 @@ function CreateTextBox(screen_x, screen_y, canvas_x, canvas_y) {
         item.height = TextHeight;
         item.rotation = 0;
 
+        add_to_history(state);
         state.objects.push(item);
-        state.history = [];
 
         document.body.removeChild(box);
 
@@ -1214,41 +980,26 @@ let Y = 0;
 let Shape_X = 0;
 let Shape_Y = 0;
 
+function SelectObjectAt(x, y) {
+    for (let i = state.objects.length - 1; i >= 0; i--) {
+        let item = state.objects[i];
+        if (DetectObject(item, x, y)) {
+            return item;
+        }
+    }
+    return null;
+}
 
-canvas.addEventListener("mousedown", function(e) {
-    const pos= Uniform_pos(e);
+canvas.addEventListener("pointerdown", function(e) {
+    if (!e.isPrimary) {
+        return; 
+    }
+    canvas.setPointerCapture(e.pointerId);
+
+    const pos= Uniform_pos(e, canvas);
     if (state.tool === "Select" && state.selected) {
 
-        let area = null;
-
-        if (state.selected.type === TOOLS.rectangle) {
-         area = RectangleSelection(state.selected);
-        }
-
-        if (state.selected.type === TOOLS.square) {
-            area = SquareSelector(state.selected);
-        }
-
-        if (state.selected.type === TOOLS.circle) {
-            area = CircleSelector(state.selected);
-        }
-
-        if (state.selected.type === TOOLS.triangle) {
-            area = TriangleSelector(state.selected);
-        }
-
-        if (state.selected.type === TOOLS.line) {
-            area = LineSelector(state.selected);
-        }
-        if (state.selected.type === TOOLS.image) {
-            area = { x: state.selected.x, y: state.selected.y, width: state.selected.width, height: state.selected.height };
-        }
-        if (state.selected.type === TOOLS.text) {
-            area = { x: state.selected.x, y: state.selected.y, width: state.selected.width, height: state.selected.height };
-        }       
-        if (state.selected.type === TOOLS.brush) {
-            area = BrushSelection(state.selected);
-        }
+        let area = GetSelectionArea(state.selected);
 
         if (area) {
             const hitPos = unrotatePos(pos, state.selected);
@@ -1256,6 +1007,7 @@ canvas.addEventListener("mousedown", function(e) {
             let corner = Resizing_Corner(area, hitPos.x, hitPos.y);
  
             if (corner === "rotate") {
+                add_to_history(state);
                 rotating = true;
                 current = state.selected;
                 Drawing = false;
@@ -1263,12 +1015,14 @@ canvas.addEventListener("mousedown", function(e) {
             }
  
             if (corner) {
+                add_to_history(state);
                 Resizing = true;
                 ResizeHandle = corner;
                 Drawing = false;
                 return;
             }
             if (ObjectClick(area, hitPos.x, hitPos.y)) {
+                add_to_history(state);
                 Draggin=true;
                 drag_x=pos.x;
                 drag_y=pos.y;
@@ -1303,78 +1057,9 @@ canvas.addEventListener("mousedown", function(e) {
         }
     }
     
-    if (state.tool === "Select") {
-        state.selected = null;
+    if (state.tool === TOOLS.select) {
+        state.selected = SelectObjectAt(pos.x, pos.y);
 
-        for (let i = state.objects.length - 1; i >= 0; i-- ) {
-            let item = state.objects[i];
-            if (item.type === TOOLS.brush) {
-                if (BrushDetector(item, pos.x, pos.y)) {
-                    state.selected = item;
-                    break;
-                }
-            }
-            if (item.type===TOOLS.rectangle){
-                let area= RectangleSelection(item);;
-                if (ObjectClick(area, pos.x, pos.y)){
-                    state.selected=item;
-                    break;
-                }
-            }
-            if (item.type===TOOLS.square){
-                let area= SquareSelector(item);;
-                if (ObjectClick(area, pos.x, pos.y)){
-                    state.selected=item;
-                    break;
-                }
-            }
-            if (item.type === TOOLS.circle){
-                if (ActualCircleDetection(item, pos.x, pos.y)){
-                    state.selected = item;
-                    break;
-                }
-            }
-            if (item.type===TOOLS.triangle){
-                if (TriangleDetector(item,pos.x,pos.y)){
-                    state.selected=item;
-                    break;
-                }
-            }
-            if (item.type===TOOLS.line){
-                if (LineDetector(item, pos.x, pos.y)){
-                    state.selected=item;
-                    break;
-                }
-            }
-            if (item.type === TOOLS.image) {
-                let area = {
-                    x: item.x,
-                    y: item.y,
-                    width: item.width,
-                    height: item.height
-                };
-
-                if (ObjectClick(area, pos.x, pos.y)) {
-                state.selected = item;
-                break;
-                }
-            }
-
-            if (item.type === TOOLS.text) {
-                let area = {
-                    x: item.x,
-                    y: item.y,
-                    width: item.width,
-                    height: item.height
-                };
-
-                if (ObjectClick(area, pos.x, pos.y)) {
-                    state.selected = item;
-                    break;
-                }
-            }
-
-        }
         if (state.selected) {
             state.fill   = state.selected.fill   || state.fill;
             state.border = state.selected.stroke || state.border;
@@ -1403,53 +1088,57 @@ canvas.addEventListener("mousedown", function(e) {
     Drawing = true;
   }
 
-  if (state.tool === TOOLS.brush) {
-    X = pos.x;
-    Y = pos.y;
-    Stroke = {};
-    Stroke.x = X;
-    Stroke.y = Y;
-    count += 1;
-    Stroke.id = count;
-    Stroke.type = TOOLS.brush;
-    Stroke.points = [{ x: pos.x, y: pos.y }];
-    Stroke.stroke = state.stroke;
-    Stroke.StrokeWidth = state.size;
-    Stroke.opacity = state.opacity;
-    Stroke.brush_style = state.brush_style;
-  } else if (state.tool === TOOLS.rectangle) {
-    Shape_X = pos.x;
-    Shape_Y = pos.y;
-  }
+    if (state.tool === TOOLS.brush) {
+        X = pos.x;
+        Y = pos.y;
+        Stroke = {};
+        Stroke.x = X;
+        Stroke.y = Y;
+        count += 1;
+        Stroke.id = count;
+        Stroke.type = TOOLS.brush;
+        Stroke.points = [{ x: pos.x, y: pos.y }];
+        Stroke.stroke = state.stroke;
+        Stroke.StrokeWidth = state.size;
+        Stroke.opacity = state.opacity;
+        Stroke.brush_style = state.brush_style;
+    } else if (state.tool === TOOLS.rectangle) {
+        Shape_X = pos.x;
+        Shape_Y = pos.y;
+    }
 
-  if (state.tool === TOOLS.square) {
-    Shape_X = pos.x;
-    Shape_Y = pos.y;
-  }
-  if (state.tool === TOOLS.circle) {
-    Shape_X = pos.x;
-    Shape_Y = pos.y;
-  }
-  if (state.tool === TOOLS.triangle) {
-    Shape_X = pos.x;
-    Shape_Y = pos.y;
-  }
-  if (state.tool === TOOLS.line) {
-    Shape_X = pos.x;
-    Shape_Y = pos.y;
-  }
+    if (state.tool === TOOLS.square) {
+        Shape_X = pos.x;
+        Shape_Y = pos.y;
+    }
+    if (state.tool === TOOLS.circle) {
+        Shape_X = pos.x;
+        Shape_Y = pos.y;
+    }
+    if (state.tool === TOOLS.triangle) {
+        Shape_X = pos.x;
+        Shape_Y = pos.y;
+    }
+    if (state.tool === TOOLS.line) {
+        Shape_X = pos.x;
+        Shape_Y = pos.y;
+    }
 
-  if (state.tool === TOOLS.text) {
-    const pos = Uniform_pos(e);
-    CreateTextBox(e.clientX, e.clientY, pos.x, pos.y);
-    return;
-  }
+    if (state.tool === TOOLS.text) {
+        const pos = Uniform_pos(e, canvas);
+        CreateTextBox(e.clientX, e.clientY, pos.x, pos.y);
+        return;
+    }
 
 });
 
-canvas.addEventListener("mousemove", function(e) {
+canvas.addEventListener("pointermove", function(e) {
 
-  const pos= Uniform_pos(e);
+    if (!e.isPrimary) {
+        return;
+    }
+
+    const pos= Uniform_pos(e, canvas);
   
     if (rotating && current) {
         let cx, cy;
@@ -1849,7 +1538,11 @@ canvas.addEventListener("mousemove", function(e) {
 
 });
 
-canvas.addEventListener("mouseup", function(e) {
+canvas.addEventListener("pointerup", function(e) {
+
+    if (!e.isPrimary) {
+        return;
+    }
 
     if (rotating) {
         rotating = false;
@@ -1872,7 +1565,7 @@ canvas.addEventListener("mouseup", function(e) {
         return;
     }
 
-    const pos = Uniform_pos(e);
+    const pos = Uniform_pos(e, canvas);
     if (Drawing===false) {
         return;
     }
@@ -1880,6 +1573,7 @@ canvas.addEventListener("mouseup", function(e) {
     if (state.tool === TOOLS.brush) {
         Drawing = false;
         const rect = canvas.getBoundingClientRect();
+        add_to_history(state);
         state.objects.push(Stroke);
         Save();
         Stroke = null;
@@ -1904,6 +1598,7 @@ canvas.addEventListener("mouseup", function(e) {
     item.empty = state.empty;
     item.BorderEmpty= state.BorderEmpty;
 
+    add_to_history(state);
     state.objects.push(item);
     Save();
     render();
@@ -1935,6 +1630,7 @@ canvas.addEventListener("mouseup", function(e) {
     item.empty = state.empty;
     item.BorderEmpty= state.BorderEmpty;
 
+    add_to_history(state);
     state.objects.push(item);
     Save();
     render();
@@ -1961,6 +1657,7 @@ canvas.addEventListener("mouseup", function(e) {
     item.empty = state.empty;
     item.BorderEmpty= state.BorderEmpty;
 
+    add_to_history(state);
     state.objects.push(item);
     Save();
     render();
@@ -1986,6 +1683,7 @@ canvas.addEventListener("mouseup", function(e) {
     item.empty = state.empty;
     item.BorderEmpty= state.BorderEmpty;
 
+    add_to_history(state);
     state.objects.push(item);
     Save();
     render();
@@ -2007,6 +1705,7 @@ canvas.addEventListener("mouseup", function(e) {
     item.opacity = state.opacity;
     item.rotation = 0;
 
+    add_to_history(state);
     state.objects.push(item);
     Save();
     render();
@@ -2015,11 +1714,17 @@ canvas.addEventListener("mouseup", function(e) {
 
 });
 
-canvas.addEventListener("mouseleave", function(e) {
-  rotating = false;
-  current = null;
-  Drawing = false;
-  Draggin=false;
+canvas.addEventListener("pointercancel", function(e) {
+    if (!e.isPrimary) {
+        return;
+    }
+    rotating = false;
+    current = null;
+    Drawing = false;
+    Draggin=false;
+    Resizing = false;
+    ResizeHandle = null;
+    Stroke = null;
 });
 
 const theme = document.querySelector(".mode");
